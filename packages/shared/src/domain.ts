@@ -83,6 +83,7 @@ export interface Video {
   renderVersion: number;
   qualityScore?: number;
   rightsStatus: RightsStatus;
+  metadata?: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
 }

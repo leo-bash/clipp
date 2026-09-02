@@ -153,6 +153,7 @@ export const videos = pgTable("videos", {
   renderVersion: integer("render_version").notNull().default(1),
   qualityScore: real("quality_score"),
   rightsStatus: rightsStatusEnum("rights_status").notNull().default("UNKNOWN"),
+  metadataJson: jsonb("metadata_json").$type<Record<string, unknown>>(),
   createdAt: createdAt(),
   updatedAt: updatedAt()
 });

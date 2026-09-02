@@ -75,4 +75,22 @@ describe("api foundation", () => {
     expect(publication.statusCode).toBe(400);
     expect(publication.json<{ error: string }>().error).toBe("RIGHTS_REVIEW_REQUIRED");
   });
+
+  it("lets an operator edit metadata, rerender and approve a review item", async () => {
+    const app = await buildApp(loadConfig({}));
+    apps.push(app);
+    const channels = await app.server.inject({ method: "GET", url: "/api/v1/channels?pageSize=1" });
+    const channelId = channels.json<{ items: Array<{ id: string }> }>().items[0]?.id;
+    if (!channelId) throw new Error("seed channel missing");
+    const created = await app.server.inject({ method: "POST", url: "/api/v1/videos", payload: { channelId, rightsStatus: "OWNED", metadata: { title: "Draft" } } });
+    const videoId = created.json<{ id: string }>().id;
+    const edited = await app.server.inject({ method: "PATCH", url: `/api/v1/videos/${videoId}`, payload: { metadata: { title: "Edited" } } });
+    const rerendered = await app.server.inject({ method: "POST", url: `/api/v1/videos/${videoId}/rerender` });
+    const approved = await app.server.inject({ method: "POST", url: `/api/v1/videos/${videoId}/approve` });
+
+    expect(edited.statusCode).toBe(200);
+    expect(edited.json<{ metadata: Record<string, string> }>().metadata.title).toBe("Edited");
+    expect(rerendered.json<{ status: string; renderVersion: number }>()).toMatchObject({ status: "RENDERING", renderVersion: 2 });
+    expect(approved.json<{ status: string }>().status).toBe("APPROVED");
+  });
 });

@@ -1,0 +1,1 @@
+ALTER TABLE "videos" ADD COLUMN "metadata_json" jsonb;

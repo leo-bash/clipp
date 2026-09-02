@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
-import { count, desc, eq } from "drizzle-orm";
+import { count, desc, eq, sql } from "drizzle-orm";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import type { Budget, Candidate, CandidateStatus, Channel, ChannelStatus, ChannelType, Cost, Platform, Publication, PublicationStatus, RightsStatus, Source, Video, VideoStatus } from "@shortfactory/shared";
 import { AppError } from "@shortfactory/shared";
@@ -51,7 +51,10 @@ export interface CreateVideoInput {
   candidateId?: string;
   contentPlanId?: string;
   rightsStatus: RightsStatus;
+  metadata?: Record<string, unknown>;
 }
+
+export type UpdateVideoInput = Pick<Video, "metadata">;
 
 export interface CreatePublicationInput {
   videoId: string;
@@ -102,6 +105,8 @@ export interface DomainStore {
   createVideo(input: CreateVideoInput): Promise<Video>;
   approveVideo(id: string): Promise<Video | undefined>;
   rejectVideo(id: string): Promise<Video | undefined>;
+  updateVideo(id: string, input: UpdateVideoInput): Promise<Video | undefined>;
+  rerenderVideo(id: string): Promise<Video | undefined>;
   listPublications(params: PageParams): Promise<Page<Publication>>;
   createPublication(input: CreatePublicationInput): Promise<Publication>;
   listCosts(params: PageParams): Promise<Page<Cost>>;
@@ -175,9 +180,11 @@ export class MemoryDomainStore implements DomainStore {
   public async listVideos(params: PageParams): Promise<Page<Video>> { return pageSlice(this.videoItems, params); }
   public async getVideo(id: string): Promise<Video | undefined> { return this.videoItems.find((item) => item.id === id); }
   public async createVideo(input: CreateVideoInput): Promise<Video> { const item: Video = { id: randomUUID(), ...input, status: "PLANNED", renderVersion: 1, createdAt: now(), updatedAt: now() }; this.videoItems.push(item); return item; }
-  public async approveVideo(id: string): Promise<Video | undefined> { return this.updateVideo(id, { status: "APPROVED" }); }
-  public async rejectVideo(id: string): Promise<Video | undefined> { return this.updateVideo(id, { status: "REJECTED" }); }
-  private async updateVideo(id: string, input: Partial<Video>): Promise<Video | undefined> { const item = await this.getVideo(id); if (!item) return undefined; Object.assign(item, input, { updatedAt: now() }); return item; }
+  public async approveVideo(id: string): Promise<Video | undefined> { return this.updateVideoStatus(id, "APPROVED"); }
+  public async rejectVideo(id: string): Promise<Video | undefined> { return this.updateVideoStatus(id, "REJECTED"); }
+  public async updateVideo(id: string, input: UpdateVideoInput): Promise<Video | undefined> { const item = await this.getVideo(id); if (!item) return undefined; Object.assign(item, input, { updatedAt: now() }); return item; }
+  public async rerenderVideo(id: string): Promise<Video | undefined> { const item = await this.getVideo(id); if (!item) return undefined; item.status = "RENDERING"; item.renderVersion += 1; item.updatedAt = now(); return item; }
+  private async updateVideoStatus(id: string, status: VideoStatus): Promise<Video | undefined> { const item = await this.getVideo(id); if (!item) return undefined; Object.assign(item, { status, updatedAt: now() }); return item; }
   public async listPublications(params: PageParams): Promise<Page<Publication>> { return pageSlice(this.publicationItems, params); }
   public async createPublication(input: CreatePublicationInput): Promise<Publication> { const item: Publication = { id: randomUUID(), ...input, status: input.status ?? "SCHEDULED", attemptCount: 0, scheduledAt: input.scheduledAt, createdAt: now(), updatedAt: now() }; this.publicationItems.push(item); return item; }
   public async listCosts(params: PageParams): Promise<Page<Cost>> { return pageSlice(this.costItems, params); }
@@ -228,9 +235,11 @@ export class PostgresDomainStore implements DomainStore {
   public async listVideos(params: PageParams): Promise<Page<Video>> { const [items, total] = await Promise.all([this.db.select().from(videos).orderBy(desc(videos.createdAt)).limit(params.pageSize).offset((params.page - 1) * params.pageSize), this.db.select({ value: count() }).from(videos)]); return { items: items.map(toVideo), total: Number(total[0]?.value ?? 0), ...params }; }
   public async getVideo(id: string): Promise<Video | undefined> { const [item] = await this.db.select().from(videos).where(eq(videos.id, id)); return item ? toVideo(item) : undefined; }
   public async createVideo(input: CreateVideoInput): Promise<Video> { const [item] = await this.db.insert(videos).values(input).returning(); if (!item) throw new AppError("CREATE_FAILED", "video was not created"); return toVideo(item); }
-  public async approveVideo(id: string): Promise<Video | undefined> { return this.updateVideo(id, "APPROVED"); }
-  public async rejectVideo(id: string): Promise<Video | undefined> { return this.updateVideo(id, "REJECTED"); }
-  private async updateVideo(id: string, status: VideoStatus): Promise<Video | undefined> { const [item] = await this.db.update(videos).set({ status, updatedAt: new Date() }).where(eq(videos.id, id)).returning(); return item ? toVideo(item) : undefined; }
+  public async approveVideo(id: string): Promise<Video | undefined> { return this.updateVideoStatus(id, "APPROVED"); }
+  public async rejectVideo(id: string): Promise<Video | undefined> { return this.updateVideoStatus(id, "REJECTED"); }
+  public async updateVideo(id: string, input: UpdateVideoInput): Promise<Video | undefined> { const [item] = await this.db.update(videos).set({ metadataJson: input.metadata, updatedAt: new Date() }).where(eq(videos.id, id)).returning(); return item ? toVideo(item) : undefined; }
+  public async rerenderVideo(id: string): Promise<Video | undefined> { const [item] = await this.db.update(videos).set({ status: "RENDERING", renderVersion: sql`${videos.renderVersion} + 1`, updatedAt: new Date() }).where(eq(videos.id, id)).returning(); return item ? toVideo(item) : undefined; }
+  private async updateVideoStatus(id: string, status: VideoStatus): Promise<Video | undefined> { const [item] = await this.db.update(videos).set({ status, updatedAt: new Date() }).where(eq(videos.id, id)).returning(); return item ? toVideo(item) : undefined; }
   public async listPublications(params: PageParams): Promise<Page<Publication>> { const [items, total] = await Promise.all([this.db.select().from(publications).orderBy(desc(publications.createdAt)).limit(params.pageSize).offset((params.page - 1) * params.pageSize), this.db.select({ value: count() }).from(publications)]); return { items: items.map(toPublication), total: Number(total[0]?.value ?? 0), ...params }; }
   public async createPublication(input: CreatePublicationInput): Promise<Publication> { const [item] = await this.db.insert(publications).values({ ...input, scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : undefined }).returning(); if (!item) throw new AppError("CREATE_FAILED", "publication was not created"); return toPublication(item); }
   public async listCosts(params: PageParams): Promise<Page<Cost>> { const [items, total] = await Promise.all([this.db.select().from(costs).orderBy(desc(costs.createdAt)).limit(params.pageSize).offset((params.page - 1) * params.pageSize), this.db.select({ value: count() }).from(costs)]); return { items: items.map(toCost), total: Number(total[0]?.value ?? 0), ...params }; }
@@ -242,7 +251,7 @@ export class PostgresDomainStore implements DomainStore {
 function toChannel(row: typeof channels.$inferSelect): Channel { return { id: row.id, name: row.name, slug: row.slug, type: row.type, language: row.language, timezone: row.timezone, status: row.status, videosPerDay: row.videosPerDay, minDuration: row.minDuration, maxDuration: row.maxDuration, autoPublish: row.autoPublish, manualReviewRequired: row.manualReviewRequired, monthlyBudget: row.monthlyBudget, createdAt: requiredIso(row.createdAt), updatedAt: requiredIso(row.updatedAt) }; }
 function toSource(row: typeof sources.$inferSelect): Source { return { id: row.id, name: row.name, type: row.type, url: row.url, platform: row.platform ?? undefined, rightsStatus: row.rightsStatus, creator: row.creator ?? undefined, notes: row.notes ?? undefined, enabled: row.enabled, createdAt: requiredIso(row.createdAt), updatedAt: requiredIso(row.updatedAt) }; }
 function toCandidate(row: typeof candidates.$inferSelect): Candidate { return { id: row.id, channelId: row.channelId, sourceAssetId: row.sourceAssetId ?? undefined, status: row.status, topic: row.topic, scoreTotal: row.scoreTotal, analysis: row.analysisJson ?? undefined, rejectionReason: row.rejectionReason ?? undefined, createdAt: requiredIso(row.createdAt), updatedAt: requiredIso(row.updatedAt) }; }
-function toVideo(row: typeof videos.$inferSelect): Video { return { id: row.id, channelId: row.channelId, candidateId: row.candidateId ?? undefined, contentPlanId: row.contentPlanId ?? undefined, status: row.status, storageKey: row.storageKey ?? undefined, thumbnailKey: row.thumbnailKey ?? undefined, duration: row.duration ?? undefined, width: row.width ?? undefined, height: row.height ?? undefined, fileSize: row.fileSize ?? undefined, contentHash: row.contentHash ?? undefined, renderVersion: row.renderVersion, qualityScore: row.qualityScore ?? undefined, rightsStatus: row.rightsStatus, createdAt: requiredIso(row.createdAt), updatedAt: requiredIso(row.updatedAt) }; }
+function toVideo(row: typeof videos.$inferSelect): Video { return { id: row.id, channelId: row.channelId, candidateId: row.candidateId ?? undefined, contentPlanId: row.contentPlanId ?? undefined, status: row.status, storageKey: row.storageKey ?? undefined, thumbnailKey: row.thumbnailKey ?? undefined, duration: row.duration ?? undefined, width: row.width ?? undefined, height: row.height ?? undefined, fileSize: row.fileSize ?? undefined, contentHash: row.contentHash ?? undefined, renderVersion: row.renderVersion, qualityScore: row.qualityScore ?? undefined, rightsStatus: row.rightsStatus, metadata: row.metadataJson ?? undefined, createdAt: requiredIso(row.createdAt), updatedAt: requiredIso(row.updatedAt) }; }
 function toPublication(row: typeof publications.$inferSelect): Publication { return { id: row.id, videoId: row.videoId, platformAccountId: row.platformAccountId ?? undefined, platform: row.platform, status: row.status, scheduledAt: iso(row.scheduledAt), publishedAt: iso(row.publishedAt), externalPostId: row.externalPostId ?? undefined, externalUrl: row.externalUrl ?? undefined, attemptCount: row.attemptCount, lastError: row.lastError ?? undefined, createdAt: requiredIso(row.createdAt), updatedAt: requiredIso(row.updatedAt) }; }
 function toCost(row: typeof costs.$inferSelect): Cost { return { id: row.id, provider: row.provider, service: row.service, operation: row.operation, channelId: row.channelId ?? undefined, candidateId: row.candidateId ?? undefined, videoId: row.videoId ?? undefined, quantity: row.quantity, unit: row.unit, estimatedCostEur: row.estimatedCostEur, actualCostEur: row.actualCostEur ?? undefined, createdAt: requiredIso(row.createdAt) }; }
 function toBudget(row: typeof schema.budgets.$inferSelect): Budget { return { id: row.id, scope: row.scope, scopeId: row.scopeId, period: row.period, budgetEur: row.budgetEur, spentEur: row.spentEur, reservedEur: row.reservedEur, warningThreshold: row.warningThreshold, hardStop: row.hardStop, createdAt: requiredIso(row.createdAt) }; }

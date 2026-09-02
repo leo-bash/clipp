@@ -1,4 +1,6 @@
 import type { Channel } from "@shortfactory/shared";
+import type { Video } from "@shortfactory/shared";
+import ReviewQueue from "./ReviewQueue";
 
 export const dynamic = "force-dynamic";
 
@@ -16,14 +18,25 @@ async function getChannels(): Promise<Channel[]> {
   }
 }
 
+async function getVideos(): Promise<Video[]> {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+  try {
+    const response = await fetch(`${apiUrl}/api/v1/videos?page=1&pageSize=20`);
+    if (!response.ok) return [];
+    const payload = await response.json() as { items?: Video[] };
+    return payload.items ?? [];
+  } catch { return []; }
+}
+
 export default async function Home(): Promise<React.JSX.Element> {
   const channels = await getChannels();
+  const videos = await getVideos();
 
   return (
     <main className="shell">
-      <p className="eyebrow">SHORTFACTORY / FOUNDATION</p>
+      <p className="eyebrow">SHORTFACTORY / OPERATIONS</p>
       <h1>Content operations, ready to scale.</h1>
-      <p className="lede">Phase 1 is online. Domain workflows and review queues arrive in the next milestones.</p>
+      <p className="lede">A rights-aware production line from candidate to reviewed short-form video.</p>
       <section className="status-grid" aria-label="foundation services">
         {services.map((service) => (
           <div className="status-card" key={service}>
@@ -48,6 +61,7 @@ export default async function Home(): Promise<React.JSX.Element> {
         <strong>Rights safety active</strong>
         <span>Blocked assets cannot render; unknown and commentary assets require manual review.</span>
       </aside>
+      <ReviewQueue initialVideos={videos} />
     </main>
   );
 }

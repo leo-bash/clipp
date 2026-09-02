@@ -1,6 +1,6 @@
 # ShortFactory — TODO
 
-## Current phase: PHASE 7 — REVIEW DASHBOARD
+## Current phase: PHASE 8 — MOCK PUBLISHING
 
 - [x] Analyze repository and environment.
 - [x] Read the complete project specification.
@@ -73,6 +73,17 @@ PHASE 5 acceptance criteria are satisfied by the automated fixture test and full
 
 PHASE 6 acceptance criteria are satisfied by the pipeline tests and full local check suite. Paid provider credentials remain runtime-only and no external provider call is made by the deterministic adapters.
 
+## PHASE 7 result
+
+- [x] Add dashboard review queue with API-backed video list.
+- [x] Add metadata JSON editing from the dashboard.
+- [x] Add approve/reject actions.
+- [x] Add rights-gated rerender action with `renderVersion` increment.
+- [x] Persist video metadata with a versioned PostgreSQL migration.
+- [x] Test the review action API and build the dashboard.
+
+PHASE 7 acceptance criteria are satisfied by API coverage and the dashboard production build. The queue is intentionally API-only from the browser; no direct database access is exposed.
+
 PHASE 4 acceptance criteria are satisfied by unit/API coverage. Rights decisions are explicit and do not assume that editing makes third-party content legal.
 
 ## Deferred to later phases
@@ -83,4 +94,5 @@ PHASE 4 acceptance criteria are satisfied by unit/API coverage. Rights decisions
 - [x] Media engine and QC (Phase 5).
 - [x] FFmpeg rendering and QC (Phase 5).
 - [x] AI/transcription/planning providers (Phase 6).
-- [ ] Review, scheduling, publishing and analytics (Phases 7–12).
+- [x] Review dashboard (Phase 7).
+- [ ] Scheduling, publishing and analytics (Phases 8–12).

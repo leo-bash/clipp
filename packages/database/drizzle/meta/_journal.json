@@ -15,6 +15,13 @@
       "when": 1788338428918,
       "tag": "0001_cost_control",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788339821068,
+      "tag": "0002_review_metadata",
+      "breakpoints": true
     }
   ]
 }

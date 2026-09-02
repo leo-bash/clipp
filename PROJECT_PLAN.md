@@ -10,7 +10,7 @@
 | 4 | Rights safety gate | Completed |
 | 5 | Storage, FFmpeg renderer and QC | Completed |
 | 6 | Transcription, analysis and content planning adapters | Completed |
-| 7 | Review dashboard | Pending |
+| 7 | Review dashboard | Completed |
 | 8 | Mock publishers and scheduler | Pending |
 | 9–14 | Official platform adapters, analytics, orchestrator and production hardening | Pending |
 
@@ -48,6 +48,10 @@ Drizzle schema and versioned migration cover the 14 entities from the specificat
 
 `@shortfactory/transcription` exposes timestamped transcripts, a deterministic local adapter and a cache keyed by `mediaHash + language + model`. `@shortfactory/ai` orchestrates transcript → analysis → content plan, validates all external-shaped outputs with Zod, retries invalid analysis/planning output only within a bounded limit, and emits cost measurements. `@shortfactory/tts` exposes a replaceable provider contract with an explicit disabled implementation. The light worker imports the pipeline, and tests cover cache behavior, the candidate pipeline and retry bounds.
 
+## Phase 7 verification
+
+The dashboard has an operator review queue backed entirely by API calls. An operator can edit JSON metadata, request a rerender, approve or reject a video. The API persists video metadata, increments `renderVersion` for rerender requests, and re-applies the rights gate before rendering. API tests cover the review actions and the dashboard passes typecheck, lint and production build.
+
 ## Next milestone
 
-Phase 7 will add the review dashboard for preview, approval, rejection, rerender and metadata editing.
+Phase 8 will add mock YouTube, TikTok and Instagram publishers plus scheduler boundaries.

@@ -43,6 +43,8 @@ The render worker owns media processing and receives absolute input/output paths
 
 The light worker owns the candidate AI boundary. `AiPipeline` passes candidate metadata, channel configuration, performance context and a timestamped transcript to analysis; no video binary is sent to the LLM boundary. Transcription is cached by media hash, language and model. External analysis and planning responses must pass Zod schemas and have bounded retries before they can reach downstream rendering.
 
+The dashboard review queue is the operator boundary: it reads videos through the API and exposes metadata editing, rerender, approve and reject actions. It never accesses PostgreSQL directly. Rerender requests pass through the API rights gate and increment `renderVersion` so a retry cannot silently create an uncontrolled duplicate.
+
 ## Local modes
 
 `DATABASE_MODE=memory` and `QUEUE_MODE=mock` make the service shell runnable without Docker. They are explicit development adapters, not production fallbacks. Docker Compose sets PostgreSQL and Redis modes and readiness checks those real dependencies.
