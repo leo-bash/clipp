@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { InstagramMockPublisher, InMemoryDistributedLock, PublishingScheduler, TikTokMockPublisher, TikTokPublisher, YouTubeMockPublisher, YouTubePublisher } from "./index.js";
+import { InstagramMockPublisher, InstagramPublisher, InMemoryDistributedLock, PublishingScheduler, TikTokMockPublisher, TikTokPublisher, YouTubeMockPublisher, YouTubePublisher } from "./index.js";
 
 afterEach(() => { vi.unstubAllGlobals(); });
 
@@ -62,5 +62,29 @@ describe("mock publishing", () => {
       expect(result).toMatchObject({ platform: "TIKTOK", status: "SUCCESS", externalPostId: "tiktok-publish-1" });
       expect(fetchMock).toHaveBeenCalledTimes(2);
     } finally { await rm(directory, { recursive: true, force: true }); }
+  });
+
+  it("uses the official Instagram Reels container, status and publish flow", async () => {
+    const fetchMock = vi.fn(async (input: unknown, init?: RequestInit): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("/ig-user-1?fields=id,username")) return new Response(JSON.stringify({ id: "ig-user-1", username: "shortfactory" }), { status: 200 });
+      if (url.endsWith("/ig-user-1/media") && init?.method === "POST") return new Response(JSON.stringify({ id: "ig-container-1" }), { status: 200 });
+      if (url.includes("/ig-container-1?fields=status_code,status")) return new Response(JSON.stringify({ status_code: "FINISHED" }), { status: 200 });
+      if (url.endsWith("/ig-user-1/media_publish")) return new Response(JSON.stringify({ id: "ig-media-1" }), { status: 200 });
+      throw new Error(`unexpected fetch ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await new InstagramPublisher({ accessToken: "token", instagramUserId: "ig-user-1", apiBaseUrl: "https://graph.test", apiVersion: "v23.0", statusPollIntervalMs: 0 }).publish({ videoId: "video-1", title: "Title", description: "Description", publicMediaUrl: "https://cdn.test/video.mp4", scheduledAt: "2099-01-01T09:00:00Z" });
+    expect(result).toMatchObject({ platform: "INSTAGRAM", status: "SUCCESS", externalPostId: "ig-media-1" });
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it("reports missing Instagram prerequisites without making an API call", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const publisher = new InstagramPublisher();
+    await expect(publisher.validateAccount()).resolves.toMatchObject({ ok: false, detail: "NEEDS_CONFIGURATION" });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

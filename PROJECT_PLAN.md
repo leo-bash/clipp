@@ -14,7 +14,8 @@
 | 8 | Mock publishers and scheduler | Completed |
 | 9 | Official YouTube adapter | Completed |
 | 10 | Official TikTok adapter | Completed |
-| 11–14 | Instagram, analytics, orchestrator and production hardening | Pending |
+| 11 | Official Instagram adapter | Completed |
+| 12–14 | Analytics, orchestrator and production hardening | Pending |
 
 ## Phase 1 exit criteria
 
@@ -66,6 +67,10 @@ The dashboard has an operator review queue backed entirely by API calls. An oper
 
 `TikTokPublisher` implements OAuth code exchange/refresh, creator-info validation, Content Posting API Direct Post and Upload-to-Draft modes, chunked file transfer with `Content-Range`, and status polling through `status/fetch`. Direct Post uses the safe `SELF_ONLY` privacy level and can fall back to Upload-to-Draft only when configured and the API reports missing scope authorization. Tests verify the official direct-post initialization and transfer boundary.
 
+## Phase 11 verification
+
+`InstagramPublisher` implements the official Meta/Instagram Reels flow: create a public-URL media container, poll `status_code` until `FINISHED`/failure, then call `media_publish`. It validates configured credentials/account first, exposes basic media insights, and returns `NEEDS_CONFIGURATION` without making calls when prerequisites are absent. Polling attempts and interval are configurable, and tests cover the full container flow and missing-prerequisite path.
+
 ## Next milestone
 
-Phase 11 will add the official Meta/Instagram publishing boundary with explicit account configuration failures.
+Phase 12 will add analytics snapshots, platform metrics and performance scoring.

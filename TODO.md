@@ -1,6 +1,6 @@
 # ShortFactory — TODO
 
-## Current phase: PHASE 11 — INSTAGRAM ADAPTER
+## Current phase: PHASE 12 — ANALYTICS
 
 - [x] Analyze repository and environment.
 - [x] Read the complete project specification.
@@ -121,6 +121,18 @@ PHASE 9 acceptance criteria are satisfied by the adapter tests and full local ch
 
 PHASE 10 acceptance criteria are satisfied by the adapter tests and full local check suite. TikTok credentials, scopes and app approval remain runtime/account configuration; no browser automation is used.
 
+## PHASE 11 result
+
+- [x] Add official Instagram Graph API publisher for Reels.
+- [x] Add professional-account/app prerequisite validation.
+- [x] Add media container creation from a public media URL.
+- [x] Add bounded status polling and media publish finalization.
+- [x] Add basic media insights retrieval.
+- [x] Return `NEEDS_CONFIGURATION` explicitly when credentials/account are absent.
+- [x] Test container → status → publish and missing configuration.
+
+PHASE 11 acceptance criteria are satisfied by the adapter tests and full local check suite. Instagram credentials, professional account status and Meta permissions remain runtime configuration; the adapter never automates login through a browser.
+
 PHASE 4 acceptance criteria are satisfied by unit/API coverage. Rights decisions are explicit and do not assume that editing makes third-party content legal.
 
 ## Deferred to later phases
@@ -135,4 +147,5 @@ PHASE 4 acceptance criteria are satisfied by unit/API coverage. Rights decisions
 - [x] Mock scheduling and publishing (Phase 8).
 - [x] Official YouTube publishing boundary (Phase 9).
 - [x] Official TikTok publishing boundary (Phase 10).
-- [ ] Instagram and analytics (Phases 11–12).
+- [x] Official Instagram publishing boundary (Phase 11).
+- [ ] Analytics snapshots and scoring (Phase 12).

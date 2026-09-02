@@ -13,3 +13,7 @@ The publisher worker and Compose service are ready for queue integration. Offici
 ## TikTok
 
 `TikTokPublisher` uses the official OAuth token endpoints and Content Posting API. `DIRECT_POST` initializes `/v2/post/publish/video/init/` with `video.publish`, while `UPLOAD_DRAFT` initializes `/v2/post/publish/inbox/video/init/` with `video.upload`; both use `FILE_UPLOAD` with chunked `Content-Range` transfer. Direct Post defaults to `SELF_ONLY`. Status uses `/v2/post/publish/status/fetch/`. If Direct Post is configured but the API reports `scope_not_authorized`, the explicit `fallbackToDraft` option may switch to Upload-to-Draft; no browser or login simulation is attempted.
+
+## Instagram
+
+`InstagramPublisher` uses the official Meta/Instagram Graph flow for Reels. It first validates the configured professional account, creates a `/media` container using a public media URL, polls `status_code` with bounded configurable attempts, and calls `/media_publish` only after `FINISHED`. Missing access token/user ID returns `NEEDS_CONFIGURATION`; missing public URL returns an explicit failure. The adapter also exposes basic media insights and never automates Instagram login.

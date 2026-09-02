@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { AppError, type Platform } from "@shortfactory/shared";
 
-export interface PublishInput { videoId: string; title: string; description: string; storageKey?: string; filePath?: string; scheduledAt: string; privacyStatus?: "private" | "unlisted" | "public"; }
+export interface PublishInput { videoId: string; title: string; description: string; storageKey?: string; filePath?: string; publicMediaUrl?: string; scheduledAt: string; privacyStatus?: "private" | "unlisted" | "public"; }
 export interface AccountValidation { ok: boolean; detail?: string; }
 export interface PublishResult { platform: Platform; status: "SUCCESS" | "FAILED"; externalPostId?: string; externalUrl?: string; error?: string; }
 export interface PlatformStatus { externalPostId: string; status: "PROCESSING" | "PUBLISHED" | "FAILED"; }
@@ -216,6 +216,78 @@ export class TikTokPublisher implements PlatformPublisher {
   private authHeaders(): Record<string, string> { return this.accessToken ? { authorization: `Bearer ${this.accessToken}` } : {}; }
 }
 
+export interface InstagramPublisherOptions {
+  accessToken?: string;
+  instagramUserId?: string;
+  apiBaseUrl?: string;
+  apiVersion?: string;
+  statusPollAttempts?: number;
+  statusPollIntervalMs?: number;
+}
+
+export class InstagramPublisher implements PlatformPublisher {
+  public readonly platform = "INSTAGRAM" as const;
+  private readonly options: Required<Pick<InstagramPublisherOptions, "apiBaseUrl" | "apiVersion" | "statusPollAttempts" | "statusPollIntervalMs">> & Pick<InstagramPublisherOptions, "accessToken" | "instagramUserId">;
+
+  public constructor(options: InstagramPublisherOptions = {}) {
+    this.options = { accessToken: options.accessToken, instagramUserId: options.instagramUserId, apiBaseUrl: options.apiBaseUrl ?? "https://graph.instagram.com", apiVersion: options.apiVersion ?? "v23.0", statusPollAttempts: options.statusPollAttempts ?? 5, statusPollIntervalMs: options.statusPollIntervalMs ?? 60_000 };
+  }
+
+  public async validateAccount(): Promise<AccountValidation> {
+    if (!this.options.accessToken || !this.options.instagramUserId) return { ok: false, detail: "NEEDS_CONFIGURATION" };
+    const response = await fetch(this.endpoint(`/${this.options.instagramUserId}?fields=id,username`), { headers: this.authHeaders() });
+    if (!response.ok) return { ok: false, detail: `INSTAGRAM_CREDENTIALS_INVALID_${response.status}` };
+    return { ok: true, detail: "Instagram professional account validated" };
+  }
+
+  public async estimateCost(input: PublishInput): Promise<number> { void input; return 0; }
+
+  public async publish(input: PublishInput): Promise<PublishResult> {
+    const account = await this.validateAccount();
+    if (!account.ok) return { platform: this.platform, status: "FAILED", error: account.detail ?? "NEEDS_CONFIGURATION" };
+    if (!input.publicMediaUrl) return { platform: this.platform, status: "FAILED", error: "INSTAGRAM_PUBLIC_MEDIA_URL_REQUIRED" };
+    try {
+      const containerResponse = await this.formPost(`/${this.options.instagramUserId}/media`, { media_type: "REELS", video_url: input.publicMediaUrl, caption: `${input.title}\n\n${input.description}`.trim(), share_to_feed: "true" });
+      const containerPayload = await jsonOrError(containerResponse, "Instagram container creation failed") as { id?: string };
+      if (!containerPayload.id) return { platform: this.platform, status: "FAILED", error: "INSTAGRAM_CONTAINER_ID_MISSING" };
+      const ready = await this.waitForContainer(containerPayload.id);
+      if (ready !== "FINISHED") return { platform: this.platform, status: "FAILED", externalPostId: containerPayload.id, error: `INSTAGRAM_CONTAINER_${ready}` };
+      const publishResponse = await this.formPost(`/${this.options.instagramUserId}/media_publish`, { creation_id: containerPayload.id });
+      const publishedPayload = await jsonOrError(publishResponse, "Instagram media publish failed") as { id?: string };
+      if (!publishedPayload.id) return { platform: this.platform, status: "FAILED", externalPostId: containerPayload.id, error: "INSTAGRAM_MEDIA_ID_MISSING" };
+      return { platform: this.platform, status: "SUCCESS", externalPostId: publishedPayload.id };
+    } catch (error) { return { platform: this.platform, status: "FAILED", error: error instanceof Error ? error.message : "INSTAGRAM_PUBLISH_FAILED" }; }
+  }
+
+  public async getStatus(externalPostId: string): Promise<PlatformStatus> {
+    const response = await fetch(this.endpoint(`/${encodeURIComponent(externalPostId)}?fields=status_code,status`), { headers: this.authHeaders() });
+    const payload = await jsonOrError(response, "Instagram container status request failed") as { status_code?: string };
+    return { externalPostId, status: payload.status_code === "PUBLISHED" ? "PUBLISHED" : payload.status_code === "ERROR" || payload.status_code === "EXPIRED" ? "FAILED" : "PROCESSING" };
+  }
+
+  public async getAnalytics(externalPostId: string): Promise<AnalyticsSnapshot> {
+    const response = await fetch(this.endpoint(`/${encodeURIComponent(externalPostId)}/insights?metric=views,likes,comments,shares`), { headers: this.authHeaders() });
+    if (!response.ok) return { views: 0, likes: 0, comments: 0, shares: 0 };
+    const payload = await response.json() as { data?: Array<{ name?: string; values?: Array<{ value?: number }> }> };
+    const metric = (name: string): number => Number(payload.data?.find((item) => item.name === name)?.values?.[0]?.value ?? 0);
+    return { views: metric("views"), likes: metric("likes"), comments: metric("comments"), shares: metric("shares") };
+  }
+
+  private async waitForContainer(containerId: string): Promise<string> {
+    for (let attempt = 0; attempt < this.options.statusPollAttempts; attempt += 1) {
+      const response = await fetch(this.endpoint(`/${encodeURIComponent(containerId)}?fields=status_code,status`), { headers: this.authHeaders() });
+      const payload = await jsonOrError(response, "Instagram container status request failed") as { status_code?: string };
+      if (payload.status_code === "FINISHED" || payload.status_code === "ERROR" || payload.status_code === "EXPIRED") return payload.status_code;
+      if (attempt + 1 < this.options.statusPollAttempts && this.options.statusPollIntervalMs > 0) await new Promise((resolve) => setTimeout(resolve, this.options.statusPollIntervalMs));
+    }
+    return "IN_PROGRESS";
+  }
+
+  private async formPost(pathname: string, values: Record<string, string>): Promise<Response> { return fetch(this.endpoint(pathname), { method: "POST", headers: { ...this.authHeaders(), "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams(values) }); }
+  private endpoint(pathname: string): string { return `${this.options.apiBaseUrl}/${this.options.apiVersion}${pathname}`; }
+  private authHeaders(): Record<string, string> { return this.options.accessToken ? { authorization: `Bearer ${this.options.accessToken}` } : {}; }
+}
+
 export interface SchedulerChannel { id: string; timezone: string; publishingSlots: string[]; }
 export interface SchedulableVideo { id: string; status: string; rightsStatus: string; }
 export interface ScheduledPublication extends PublishResult { scheduledAt: string; }
@@ -231,7 +303,7 @@ export class InMemoryDistributedLock implements DistributedLock {
 export class PublishingScheduler {
   public constructor(private readonly publishers: PlatformPublisher[], private readonly lock: DistributedLock = new InMemoryDistributedLock(), private readonly clock: () => Date = () => new Date()) {}
 
-  public async publishApprovedVideo(video: SchedulableVideo, channel: SchedulerChannel, metadata: { title: string; description: string; storageKey?: string; filePath?: string; privacyStatus?: PublishInput["privacyStatus"] }, scheduledAt = nextPublishingSlot(this.clock(), channel.timezone, channel.publishingSlots)): Promise<ScheduleResult> {
+  public async publishApprovedVideo(video: SchedulableVideo, channel: SchedulerChannel, metadata: { title: string; description: string; storageKey?: string; filePath?: string; publicMediaUrl?: string; privacyStatus?: PublishInput["privacyStatus"] }, scheduledAt = nextPublishingSlot(this.clock(), channel.timezone, channel.publishingSlots)): Promise<ScheduleResult> {
     if (video.status !== "APPROVED") throw new AppError("VIDEO_NOT_APPROVED", "only approved videos can be scheduled");
     if (video.rightsStatus === "BLOCKED") throw new AppError("RIGHTS_BLOCKED", "blocked videos cannot be published");
     const lockKey = `publication:${video.id}`;
@@ -240,7 +312,7 @@ export class PublishingScheduler {
       const results = await Promise.all(this.publishers.map(async (publisher) => {
         const account = await publisher.validateAccount();
         if (!account.ok) return { platform: publisher.platform, status: "FAILED" as const, error: account.detail ?? "account unavailable", scheduledAt } satisfies ScheduledPublication;
-        try { return { ...await publisher.publish({ videoId: video.id, title: metadata.title, description: metadata.description, storageKey: metadata.storageKey, filePath: metadata.filePath, privacyStatus: metadata.privacyStatus, scheduledAt }), scheduledAt }; } catch (error) { return { platform: publisher.platform, status: "FAILED" as const, error: error instanceof Error ? error.message : "publisher failed", scheduledAt }; }
+        try { return { ...await publisher.publish({ videoId: video.id, title: metadata.title, description: metadata.description, storageKey: metadata.storageKey, filePath: metadata.filePath, publicMediaUrl: metadata.publicMediaUrl, privacyStatus: metadata.privacyStatus, scheduledAt }), scheduledAt }; } catch (error) { return { platform: publisher.platform, status: "FAILED" as const, error: error instanceof Error ? error.message : "publisher failed", scheduledAt }; }
       }));
       return { status: results.every((result) => result.status === "SUCCESS") ? "SUCCESS" : "PARTIAL_FAILURE", scheduledAt, publications: results };
     } finally { await this.lock.release(lockKey); }
