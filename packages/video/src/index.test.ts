@@ -49,6 +49,20 @@ describe("FFmpegRenderer", () => {
     }
   }, 30_000);
 
+  it("keeps cuts synchronized in the blurred background composition", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "shortfactory-video-blur-cuts-"));
+    const inputPath = path.join(directory, "source.mp4");
+    const outputPath = path.join(directory, "blurred-cut.mp4");
+    try {
+      await execFileAsync("ffmpeg", ["-y", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=0x243b35:s=1280x720:d=2:r=30", "-c:v", "libx264", "-pix_fmt", "yuv420p", inputPath]);
+      const result = await new FFmpegRenderer().render({ inputPath, outputPath, backgroundBlur: true, cuts: [{ start: 0.5, end: 1.5 }] }, { width: 1080, height: 1920, minDuration: 0.5, maxDuration: 2, audioRequired: false, maxFileSizeBytes: 10 * 1024 * 1024 });
+      expect(result.qc.passed).toBe(true);
+      expect(result.probe.format.duration).toBeCloseTo(1, 0);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  }, 30_000);
+
   it("supports bounded zoom and cut ranges", async () => {
     const directory = await mkdtemp(path.join(os.tmpdir(), "shortfactory-video-cuts-"));
     const inputPath = path.join(directory, "source.mp4");

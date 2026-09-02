@@ -2,13 +2,18 @@ import type { FastifyInstance } from "fastify";
 import { z, ZodError } from "zod";
 import type { BudgetKey, CostControlService, ReservationRequest } from "@shortfactory/cost-control";
 import type { RightsGate } from "@shortfactory/rights";
-import { type DomainStore, type PageParams, type CreateBudgetInput, type CreateCandidateInput, type CreateChannelInput, type CreateCostInput, type CreatePublicationInput, type CreateSourceInput, type CreateVideoInput, type UpdateChannelInput, type UpdateSourceInput, type UpdateVideoInput } from "@shortfactory/database";
+import { type DomainStore, type PageParams, type CreateBudgetInput, type CreateCandidateInput, type CreateChannelInput, type CreateContentPlanInput, type CreateCostInput, type CreateJobAuditInput, type CreatePlatformAccountInput, type CreatePublicationInput, type CreateSourceAssetInput, type CreateSourceInput, type CreateTranscriptInput, type CreateVideoInput, type UpdateChannelInput, type UpdatePlatformAccountInput, type UpdateSourceInput, type UpdateVideoInput } from "@shortfactory/database";
 import { AppError, channelStatuses, channelTypes, defaultPublishingSlots, platforms, publicationStatuses, rightsStatuses, type OperationalControls } from "@shortfactory/shared";
 
 const pageSchema = z.object({ page: z.coerce.number().int().min(1).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(25) });
 const idSchema = z.object({ id: z.string().uuid() });
 const channelSchema = z.object({ name: z.string().trim().min(1).max(120), slug: z.string().trim().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/), type: z.enum(channelTypes), language: z.string().trim().min(2).max(12), timezone: z.string().trim().min(1).max(80), status: z.enum(channelStatuses).optional(), videosPerDay: z.number().int().min(0).max(100), minDuration: z.number().int().min(1).max(600), maxDuration: z.number().int().min(1).max(600), autoPublish: z.boolean(), manualReviewRequired: z.boolean(), monthlyBudget: z.number().nonnegative(), publishingSlots: z.array(z.string().regex(/^\d{2}:\d{2}$/u)).max(24).default([...defaultPublishingSlots]), keywords: z.array(z.string().trim().min(1).max(80)).max(100).default([]), priority: z.number().int().min(0).max(100).default(0), settings: z.record(z.unknown()).default({}), killSwitches: z.record(z.boolean()).default({}) });
 const sourceSchema = z.object({ name: z.string().trim().min(1).max(120), type: z.string().trim().min(1).max(60), url: z.string().url(), platform: z.enum(platforms).optional(), rightsStatus: z.enum(rightsStatuses), creator: z.string().trim().max(120).optional(), notes: z.string().trim().max(2000).optional(), licenseUrl: z.string().url().optional(), attributionRequired: z.boolean().default(false), attributionText: z.string().trim().max(1000).optional(), keywords: z.array(z.string().trim().min(1).max(80)).max(100).default([]), enabled: z.boolean() });
+const platformAccountSchema = z.object({ channelId: z.string().uuid(), platform: z.enum(platforms), externalAccountId: z.string().trim().min(1).max(240), displayName: z.string().trim().min(1).max(160), status: z.string().trim().min(1).max(40).default("DISCONNECTED"), credentialsReference: z.string().trim().min(1).max(240).optional(), tokenExpiresAt: z.string().datetime().optional() });
+const sourceAssetSchema = z.object({ sourceId: z.string().uuid(), externalId: z.string().trim().min(1).max(240), sourceUrl: z.string().url(), storageKey: z.string().trim().min(1).max(500).optional(), title: z.string().trim().min(1).max(240), description: z.string().trim().max(5000).optional(), durationSeconds: z.number().positive().optional(), publishedAt: z.string().datetime().optional(), views: z.number().int().nonnegative().default(0), likes: z.number().int().nonnegative().default(0), comments: z.number().int().nonnegative().default(0), shares: z.number().int().nonnegative().default(0), language: z.string().trim().min(2).max(12).optional(), rightsStatus: z.enum(rightsStatuses), metadata: z.record(z.unknown()).optional(), contentHash: z.string().trim().min(1).max(200).optional() });
+const transcriptSchema = z.object({ sourceAssetId: z.string().uuid(), provider: z.string().trim().min(1).max(80), language: z.string().trim().min(2).max(12), text: z.string().max(500_000), segments: z.array(z.unknown()).max(100_000), confidence: z.number().min(0).max(1).optional(), costEur: z.number().nonnegative().default(0) });
+const contentPlanSchema = z.object({ candidateId: z.string().uuid(), channelId: z.string().uuid(), hook: z.string().trim().min(1).max(500), script: z.string().trim().min(1).max(100_000), title: z.string().trim().min(1).max(240), description: z.string().max(5000), hashtags: z.array(z.string().trim().min(1).max(80)).max(100).default([]), editPlan: z.record(z.unknown()), voiceoverRequired: z.boolean().default(false), targetDuration: z.number().int().min(1).max(600) });
+const jobAuditSchema = z.object({ queue: z.string().trim().min(1).max(80), jobId: z.string().trim().min(1).max(240), type: z.string().trim().min(1).max(120), entityId: z.string().uuid().optional(), status: z.string().trim().min(1).max(40), attempt: z.number().int().nonnegative().default(0), startedAt: z.string().datetime().optional(), completedAt: z.string().datetime().optional(), error: z.string().max(5000).optional(), metadata: z.record(z.unknown()).optional() });
 const candidateSchema = z.object({ channelId: z.string().uuid(), topic: z.string().trim().min(1).max(240), sourceAssetId: z.string().uuid().optional(), scoreTotal: z.number().min(0).max(100).optional() });
 const videoSchema = z.object({ channelId: z.string().uuid(), candidateId: z.string().uuid().optional(), contentPlanId: z.string().uuid().optional(), rightsStatus: z.enum(rightsStatuses), metadata: z.record(z.unknown()).optional() });
 const videoMetadataSchema = z.object({ metadata: z.record(z.unknown()) });
@@ -38,6 +43,22 @@ export async function registerDomainRoutes(server: FastifyInstance, store: Domai
   server.get(`${prefix}/sources`, async (request) => store.listSources(parsePage(request.query)));
   server.post(`${prefix}/sources`, async (request) => store.createSource(body(request.body, sourceSchema) as CreateSourceInput));
   server.patch<{ Params: Params }>(`${prefix}/sources/:id`, async (request) => notFound(await store.updateSource(idSchema.parse(request.params).id, body(request.body, sourceSchema.partial()) as UpdateSourceInput)));
+
+  server.get(`${prefix}/platform-accounts`, async (request) => store.listPlatformAccounts(parsePage(request.query)));
+  server.post(`${prefix}/platform-accounts`, async (request) => store.createPlatformAccount(body(request.body, platformAccountSchema) as CreatePlatformAccountInput));
+  server.patch<{ Params: Params }>(`${prefix}/platform-accounts/:id`, async (request) => notFound(await store.updatePlatformAccount(idSchema.parse(request.params).id, body(request.body, platformAccountSchema.partial().omit({ channelId: true, platform: true, externalAccountId: true })) as UpdatePlatformAccountInput)));
+
+  server.get(`${prefix}/source-assets`, async (request) => store.listSourceAssets(parsePage(request.query)));
+  server.post(`${prefix}/source-assets`, async (request) => store.createSourceAsset(body(request.body, sourceAssetSchema) as CreateSourceAssetInput));
+
+  server.get(`${prefix}/transcripts`, async (request) => store.listTranscripts(parsePage(request.query)));
+  server.post(`${prefix}/transcripts`, async (request) => store.createTranscript(body(request.body, transcriptSchema) as CreateTranscriptInput));
+
+  server.get(`${prefix}/content-plans`, async (request) => store.listContentPlans(parsePage(request.query)));
+  server.post(`${prefix}/content-plans`, async (request) => store.createContentPlan(body(request.body, contentPlanSchema) as CreateContentPlanInput));
+
+  server.get(`${prefix}/jobs-audit`, async (request) => store.listJobsAudit(parsePage(request.query)));
+  server.post(`${prefix}/jobs-audit`, async (request) => store.createJobAudit(body(request.body, jobAuditSchema) as CreateJobAuditInput));
 
   server.get(`${prefix}/candidates`, async (request) => store.listCandidates(parsePage(request.query)));
   server.post(`${prefix}/candidates`, async (request) => store.createCandidate(body(request.body, candidateSchema) as CreateCandidateInput));

@@ -2,9 +2,9 @@ import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import { count, desc, eq, sql } from "drizzle-orm";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
-import { defaultPublishingSlots, type Budget, type Candidate, type CandidateStatus, type Channel, type ChannelStatus, type ChannelType, type Cost, type Platform, type Publication, type PublicationStatus, type RightsStatus, type Source, type Video, type VideoStatus } from "@shortfactory/shared";
+import { defaultPublishingSlots, type Budget, type Candidate, type CandidateStatus, type Channel, type ChannelStatus, type ChannelType, type ContentPlan, type Cost, type JobAudit, type Platform, type PlatformAccount, type Publication, type PublicationStatus, type RightsStatus, type Source, type SourceAsset, type TranscriptRecord, type Video, type VideoStatus } from "@shortfactory/shared";
 import { AppError } from "@shortfactory/shared";
-import { channels, candidates, costs, publications, schema, sources, videos } from "./schema.js";
+import { channels, candidates, contentPlans, costs, jobsAudit, platformAccounts, publications, schema, sourceAssets, sources, transcripts, videos } from "./schema.js";
 
 export interface PageParams { page: number; pageSize: number; }
 export interface Page<T> extends PageParams { items: T[]; total: number; }
@@ -47,6 +47,17 @@ export interface CreateSourceInput {
 }
 
 export type UpdateSourceInput = Partial<CreateSourceInput>;
+
+export interface CreatePlatformAccountInput { channelId: string; platform: Platform; externalAccountId: string; displayName: string; status?: string; credentialsReference?: string; tokenExpiresAt?: string; }
+export type UpdatePlatformAccountInput = Partial<Omit<CreatePlatformAccountInput, "channelId" | "platform" | "externalAccountId">>;
+
+export interface CreateSourceAssetInput { sourceId: string; externalId: string; sourceUrl: string; storageKey?: string; title: string; description?: string; durationSeconds?: number; publishedAt?: string; views?: number; likes?: number; comments?: number; shares?: number; language?: string; rightsStatus: RightsStatus; metadata?: Record<string, unknown>; contentHash?: string; }
+
+export interface CreateTranscriptInput { sourceAssetId: string; provider: string; language: string; text: string; segments: unknown[]; confidence?: number; costEur?: number; }
+
+export interface CreateContentPlanInput { candidateId: string; channelId: string; hook: string; script: string; title: string; description: string; hashtags?: string[]; editPlan: Record<string, unknown>; voiceoverRequired: boolean; targetDuration: number; }
+
+export interface CreateJobAuditInput { queue: string; jobId: string; type: string; entityId?: string; status: string; attempt?: number; startedAt?: string; completedAt?: string; error?: string; metadata?: Record<string, unknown>; }
 
 export interface CreateCandidateInput {
   channelId: string;
@@ -106,6 +117,17 @@ export interface DomainStore {
   listSources(params: PageParams): Promise<Page<Source>>;
   createSource(input: CreateSourceInput): Promise<Source>;
   updateSource(id: string, input: UpdateSourceInput): Promise<Source | undefined>;
+  listPlatformAccounts(params: PageParams): Promise<Page<PlatformAccount>>;
+  createPlatformAccount(input: CreatePlatformAccountInput): Promise<PlatformAccount>;
+  updatePlatformAccount(id: string, input: UpdatePlatformAccountInput): Promise<PlatformAccount | undefined>;
+  listSourceAssets(params: PageParams): Promise<Page<SourceAsset>>;
+  createSourceAsset(input: CreateSourceAssetInput): Promise<SourceAsset>;
+  listTranscripts(params: PageParams): Promise<Page<TranscriptRecord>>;
+  createTranscript(input: CreateTranscriptInput): Promise<TranscriptRecord>;
+  listContentPlans(params: PageParams): Promise<Page<ContentPlan>>;
+  createContentPlan(input: CreateContentPlanInput): Promise<ContentPlan>;
+  listJobsAudit(params: PageParams): Promise<Page<JobAudit>>;
+  createJobAudit(input: CreateJobAuditInput): Promise<JobAudit>;
   listCandidates(params: PageParams): Promise<Page<Candidate>>;
   createCandidate(input: CreateCandidateInput): Promise<Candidate>;
   selectCandidate(id: string): Promise<Candidate | undefined>;
@@ -148,6 +170,11 @@ export class MemoryDomainStore implements DomainStore {
   public readonly mode = "memory" as const;
   private readonly channelItems: Channel[] = [];
   private readonly sourceItems: Source[] = [];
+  private readonly platformAccountItems: PlatformAccount[] = [];
+  private readonly sourceAssetItems: SourceAsset[] = [];
+  private readonly transcriptItems: TranscriptRecord[] = [];
+  private readonly contentPlanItems: ContentPlan[] = [];
+  private readonly jobAuditItems: JobAudit[] = [];
   private readonly candidateItems: Candidate[] = [];
   private readonly videoItems: Video[] = [];
   private readonly publicationItems: Publication[] = [];
@@ -186,6 +213,17 @@ export class MemoryDomainStore implements DomainStore {
   public async listSources(params: PageParams): Promise<Page<Source>> { return pageSlice(this.sourceItems, params); }
   public async createSource(input: CreateSourceInput): Promise<Source> { const item: Source = { id: randomUUID(), ...input, createdAt: now(), updatedAt: now() }; this.sourceItems.push(item); return item; }
   public async updateSource(id: string, input: UpdateSourceInput): Promise<Source | undefined> { const item = this.sourceItems.find((candidate) => candidate.id === id); if (!item) return undefined; Object.assign(item, input, { updatedAt: now() }); return item; }
+  public async listPlatformAccounts(params: PageParams): Promise<Page<PlatformAccount>> { return pageSlice(this.platformAccountItems, params); }
+  public async createPlatformAccount(input: CreatePlatformAccountInput): Promise<PlatformAccount> { const item: PlatformAccount = { id: randomUUID(), ...input, status: input.status ?? "DISCONNECTED", createdAt: now(), updatedAt: now() }; this.platformAccountItems.push(item); return item; }
+  public async updatePlatformAccount(id: string, input: UpdatePlatformAccountInput): Promise<PlatformAccount | undefined> { const item = this.platformAccountItems.find((candidate) => candidate.id === id); if (!item) return undefined; Object.assign(item, input, { updatedAt: now() }); return item; }
+  public async listSourceAssets(params: PageParams): Promise<Page<SourceAsset>> { return pageSlice(this.sourceAssetItems, params); }
+  public async createSourceAsset(input: CreateSourceAssetInput): Promise<SourceAsset> { const timestamp = now(); const item: SourceAsset = { id: randomUUID(), ...input, views: input.views ?? 0, likes: input.likes ?? 0, comments: input.comments ?? 0, shares: input.shares ?? 0, discoveredAt: timestamp, createdAt: timestamp }; this.sourceAssetItems.push(item); return item; }
+  public async listTranscripts(params: PageParams): Promise<Page<TranscriptRecord>> { return pageSlice(this.transcriptItems, params); }
+  public async createTranscript(input: CreateTranscriptInput): Promise<TranscriptRecord> { const item: TranscriptRecord = { id: randomUUID(), ...input, costEur: input.costEur ?? 0, createdAt: now() }; this.transcriptItems.push(item); return item; }
+  public async listContentPlans(params: PageParams): Promise<Page<ContentPlan>> { return pageSlice(this.contentPlanItems, params); }
+  public async createContentPlan(input: CreateContentPlanInput): Promise<ContentPlan> { const timestamp = now(); const item: ContentPlan = { id: randomUUID(), ...input, hashtags: input.hashtags ?? [], createdAt: timestamp, updatedAt: timestamp }; this.contentPlanItems.push(item); return item; }
+  public async listJobsAudit(params: PageParams): Promise<Page<JobAudit>> { return pageSlice(this.jobAuditItems, params); }
+  public async createJobAudit(input: CreateJobAuditInput): Promise<JobAudit> { const item: JobAudit = { id: randomUUID(), ...input, attempt: input.attempt ?? 0, metadata: input.metadata, startedAt: input.startedAt, completedAt: input.completedAt }; this.jobAuditItems.push(item); return item; }
   public async listCandidates(params: PageParams): Promise<Page<Candidate>> { return pageSlice(this.candidateItems, params); }
   public async createCandidate(input: CreateCandidateInput): Promise<Candidate> { const item: Candidate = { id: randomUUID(), ...input, status: "DISCOVERED", scoreTotal: input.scoreTotal ?? 0, createdAt: now(), updatedAt: now() }; this.candidateItems.push(item); return item; }
   public async selectCandidate(id: string): Promise<Candidate | undefined> { return this.updateCandidate(id, { status: "SELECTED" }); }
@@ -245,6 +283,17 @@ export class PostgresDomainStore implements DomainStore {
   public async listSources(params: PageParams): Promise<Page<Source>> { const [items, total] = await Promise.all([this.db.select().from(sources).orderBy(desc(sources.createdAt)).limit(params.pageSize).offset((params.page - 1) * params.pageSize), this.db.select({ value: count() }).from(sources)]); return { items: items.map(toSource), total: Number(total[0]?.value ?? 0), ...params }; }
   public async createSource(input: CreateSourceInput): Promise<Source> { const [item] = await this.db.insert(sources).values(input).returning(); if (!item) throw new AppError("CREATE_FAILED", "source was not created"); return toSource(item); }
   public async updateSource(id: string, input: UpdateSourceInput): Promise<Source | undefined> { const [item] = await this.db.update(sources).set({ ...input, updatedAt: new Date() }).where(eq(sources.id, id)).returning(); return item ? toSource(item) : undefined; }
+  public async listPlatformAccounts(params: PageParams): Promise<Page<PlatformAccount>> { const [items, total] = await Promise.all([this.db.select().from(platformAccounts).orderBy(desc(platformAccounts.createdAt)).limit(params.pageSize).offset((params.page - 1) * params.pageSize), this.db.select({ value: count() }).from(platformAccounts)]); return { items: items.map(toPlatformAccount), total: Number(total[0]?.value ?? 0), ...params }; }
+  public async createPlatformAccount(input: CreatePlatformAccountInput): Promise<PlatformAccount> { const [item] = await this.db.insert(platformAccounts).values({ ...input, tokenExpiresAt: input.tokenExpiresAt ? new Date(input.tokenExpiresAt) : undefined }).returning(); if (!item) throw new AppError("CREATE_FAILED", "platform account was not created"); return toPlatformAccount(item); }
+  public async updatePlatformAccount(id: string, input: UpdatePlatformAccountInput): Promise<PlatformAccount | undefined> { const [item] = await this.db.update(platformAccounts).set({ ...input, tokenExpiresAt: input.tokenExpiresAt ? new Date(input.tokenExpiresAt) : undefined, updatedAt: new Date() }).where(eq(platformAccounts.id, id)).returning(); return item ? toPlatformAccount(item) : undefined; }
+  public async listSourceAssets(params: PageParams): Promise<Page<SourceAsset>> { const [items, total] = await Promise.all([this.db.select().from(sourceAssets).orderBy(desc(sourceAssets.createdAt)).limit(params.pageSize).offset((params.page - 1) * params.pageSize), this.db.select({ value: count() }).from(sourceAssets)]); return { items: items.map(toSourceAsset), total: Number(total[0]?.value ?? 0), ...params }; }
+  public async createSourceAsset(input: CreateSourceAssetInput): Promise<SourceAsset> { const [item] = await this.db.insert(sourceAssets).values({ ...input, metadataJson: input.metadata, publishedAt: input.publishedAt ? new Date(input.publishedAt) : undefined }).returning(); if (!item) throw new AppError("CREATE_FAILED", "source asset was not created"); return toSourceAsset(item); }
+  public async listTranscripts(params: PageParams): Promise<Page<TranscriptRecord>> { const [items, total] = await Promise.all([this.db.select().from(transcripts).orderBy(desc(transcripts.createdAt)).limit(params.pageSize).offset((params.page - 1) * params.pageSize), this.db.select({ value: count() }).from(transcripts)]); return { items: items.map(toTranscriptRecord), total: Number(total[0]?.value ?? 0), ...params }; }
+  public async createTranscript(input: CreateTranscriptInput): Promise<TranscriptRecord> { const [item] = await this.db.insert(transcripts).values({ ...input, segmentsJson: input.segments, costEur: input.costEur ?? 0 }).returning(); if (!item) throw new AppError("CREATE_FAILED", "transcript was not created"); return toTranscriptRecord(item); }
+  public async listContentPlans(params: PageParams): Promise<Page<ContentPlan>> { const [items, total] = await Promise.all([this.db.select().from(contentPlans).orderBy(desc(contentPlans.createdAt)).limit(params.pageSize).offset((params.page - 1) * params.pageSize), this.db.select({ value: count() }).from(contentPlans)]); return { items: items.map(toContentPlan), total: Number(total[0]?.value ?? 0), ...params }; }
+  public async createContentPlan(input: CreateContentPlanInput): Promise<ContentPlan> { const [item] = await this.db.insert(contentPlans).values({ ...input, hashtagsJson: input.hashtags ?? [], editPlanJson: input.editPlan }).returning(); if (!item) throw new AppError("CREATE_FAILED", "content plan was not created"); return toContentPlan(item); }
+  public async listJobsAudit(params: PageParams): Promise<Page<JobAudit>> { const [items, total] = await Promise.all([this.db.select().from(jobsAudit).orderBy(desc(jobsAudit.startedAt)).limit(params.pageSize).offset((params.page - 1) * params.pageSize), this.db.select({ value: count() }).from(jobsAudit)]); return { items: items.map(toJobAudit), total: Number(total[0]?.value ?? 0), ...params }; }
+  public async createJobAudit(input: CreateJobAuditInput): Promise<JobAudit> { const [item] = await this.db.insert(jobsAudit).values({ ...input, startedAt: input.startedAt ? new Date(input.startedAt) : undefined, completedAt: input.completedAt ? new Date(input.completedAt) : undefined, metadataJson: input.metadata, attempt: input.attempt ?? 0 }).returning(); if (!item) throw new AppError("CREATE_FAILED", "job audit was not created"); return toJobAudit(item); }
   public async listCandidates(params: PageParams): Promise<Page<Candidate>> { const [items, total] = await Promise.all([this.db.select().from(candidates).orderBy(desc(candidates.createdAt)).limit(params.pageSize).offset((params.page - 1) * params.pageSize), this.db.select({ value: count() }).from(candidates)]); return { items: items.map(toCandidate), total: Number(total[0]?.value ?? 0), ...params }; }
   public async createCandidate(input: CreateCandidateInput): Promise<Candidate> { const [item] = await this.db.insert(candidates).values(input).returning(); if (!item) throw new AppError("CREATE_FAILED", "candidate was not created"); return toCandidate(item); }
   public async selectCandidate(id: string): Promise<Candidate | undefined> { return this.updateCandidate(id, { status: "SELECTED" }); }
@@ -272,6 +321,11 @@ export class PostgresDomainStore implements DomainStore {
 
 function toChannel(row: typeof channels.$inferSelect): Channel { return { id: row.id, name: row.name, slug: row.slug, type: row.type, language: row.language, timezone: row.timezone, status: row.status, videosPerDay: row.videosPerDay, minDuration: row.minDuration, maxDuration: row.maxDuration, autoPublish: row.autoPublish, manualReviewRequired: row.manualReviewRequired, monthlyBudget: row.monthlyBudget, publishingSlots: row.publishingSlots, keywords: row.keywords, priority: row.priority, settings: row.settings, killSwitches: row.killSwitches, createdAt: requiredIso(row.createdAt), updatedAt: requiredIso(row.updatedAt) }; }
 function toSource(row: typeof sources.$inferSelect): Source { return { id: row.id, name: row.name, type: row.type, url: row.url, platform: row.platform ?? undefined, rightsStatus: row.rightsStatus, creator: row.creator ?? undefined, notes: row.notes ?? undefined, licenseUrl: row.licenseUrl ?? undefined, attributionRequired: row.attributionRequired, attributionText: row.attributionText ?? undefined, keywords: row.keywords, enabled: row.enabled, createdAt: requiredIso(row.createdAt), updatedAt: requiredIso(row.updatedAt) }; }
+function toPlatformAccount(row: typeof platformAccounts.$inferSelect): PlatformAccount { return { id: row.id, channelId: row.channelId, platform: row.platform, externalAccountId: row.externalAccountId, displayName: row.displayName, status: row.status, credentialsReference: row.credentialsReference ?? undefined, tokenExpiresAt: iso(row.tokenExpiresAt), createdAt: requiredIso(row.createdAt), updatedAt: requiredIso(row.updatedAt) }; }
+function toSourceAsset(row: typeof sourceAssets.$inferSelect): SourceAsset { return { id: row.id, sourceId: row.sourceId, externalId: row.externalId, sourceUrl: row.sourceUrl, storageKey: row.storageKey ?? undefined, title: row.title, description: row.description ?? undefined, durationSeconds: row.durationSeconds ?? undefined, publishedAt: iso(row.publishedAt), discoveredAt: requiredIso(row.discoveredAt), views: row.views, likes: row.likes, comments: row.comments, shares: row.shares, language: row.language ?? undefined, rightsStatus: row.rightsStatus, metadata: row.metadataJson ?? undefined, contentHash: row.contentHash ?? undefined, createdAt: requiredIso(row.createdAt) }; }
+function toTranscriptRecord(row: typeof transcripts.$inferSelect): TranscriptRecord { return { id: row.id, sourceAssetId: row.sourceAssetId, provider: row.provider, language: row.language, text: row.text, segments: row.segmentsJson, confidence: row.confidence ?? undefined, costEur: row.costEur, createdAt: requiredIso(row.createdAt) }; }
+function toContentPlan(row: typeof contentPlans.$inferSelect): ContentPlan { return { id: row.id, candidateId: row.candidateId, channelId: row.channelId, hook: row.hook, script: row.script, title: row.title, description: row.description, hashtags: row.hashtagsJson, editPlan: row.editPlanJson, voiceoverRequired: row.voiceoverRequired, targetDuration: row.targetDuration, createdAt: requiredIso(row.createdAt), updatedAt: requiredIso(row.updatedAt) }; }
+function toJobAudit(row: typeof jobsAudit.$inferSelect): JobAudit { return { id: row.id, queue: row.queue, jobId: row.jobId, type: row.type, entityId: row.entityId ?? undefined, status: row.status, attempt: row.attempt, startedAt: iso(row.startedAt), completedAt: iso(row.completedAt), error: row.error ?? undefined, metadata: row.metadataJson ?? undefined }; }
 function toCandidate(row: typeof candidates.$inferSelect): Candidate { return { id: row.id, channelId: row.channelId, sourceAssetId: row.sourceAssetId ?? undefined, status: row.status, topic: row.topic, scoreTotal: row.scoreTotal, analysis: row.analysisJson ?? undefined, rejectionReason: row.rejectionReason ?? undefined, createdAt: requiredIso(row.createdAt), updatedAt: requiredIso(row.updatedAt) }; }
 function toVideo(row: typeof videos.$inferSelect): Video { return { id: row.id, channelId: row.channelId, candidateId: row.candidateId ?? undefined, contentPlanId: row.contentPlanId ?? undefined, status: row.status, storageKey: row.storageKey ?? undefined, thumbnailKey: row.thumbnailKey ?? undefined, duration: row.duration ?? undefined, width: row.width ?? undefined, height: row.height ?? undefined, fileSize: row.fileSize ?? undefined, contentHash: row.contentHash ?? undefined, renderVersion: row.renderVersion, qualityScore: row.qualityScore ?? undefined, rightsStatus: row.rightsStatus, metadata: row.metadataJson ?? undefined, createdAt: requiredIso(row.createdAt), updatedAt: requiredIso(row.updatedAt) }; }
 function toPublication(row: typeof publications.$inferSelect): Publication { return { id: row.id, videoId: row.videoId, platformAccountId: row.platformAccountId ?? undefined, platform: row.platform, status: row.status, scheduledAt: iso(row.scheduledAt), publishedAt: iso(row.publishedAt), externalPostId: row.externalPostId ?? undefined, externalUrl: row.externalUrl ?? undefined, attemptCount: row.attemptCount, lastError: row.lastError ?? undefined, createdAt: requiredIso(row.createdAt), updatedAt: requiredIso(row.updatedAt) }; }

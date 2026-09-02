@@ -105,8 +105,12 @@ export class FFmpegRenderer implements VideoRenderer {
       const useComplexVideo = Boolean(plan.backgroundBlur || plan.overlayPath);
       let videoMap: string[];
       if (useComplexVideo) {
+        const cutPrefix = plan.cuts && plan.cuts.length > 0 ? `select='${cutExpression(plan.cuts)}',setpts=N/FRAME_RATE/TB,` : "";
+        const foreground = zoom > 1
+          ? `scale=${Math.round(width * zoom)}:${Math.round(height * zoom)}:force_original_aspect_ratio=increase,crop=${width}:${height}:(iw-${width})/2:(ih-${height})/2,setsar=1`
+          : `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1`;
         const parts: string[] = plan.backgroundBlur
-          ? [`[0:v]split=2[bg][fg]`, `[bg]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},boxblur=luma_radius=10:luma_power=1[blurred]`, `[fg]scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=black[foreground]`, `[blurred][foreground]overlay=0:0[base]`]
+          ? [`[0:v]${cutPrefix}split=2[bg][fg]`, `[bg]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},boxblur=luma_radius=10:luma_power=1[blurred]`, `[fg]${foreground}[foreground]`, `[blurred][foreground]overlay=0:0[base]`]
           : [`[0:v]${filters.join(",")}[base]`];
         let current = "base";
         if (plan.overlayPath) { parts.push(`[base][1:v]format=rgba[overlay]`, `[base][overlay]overlay=0:0[with_overlay]`); current = "with_overlay"; }

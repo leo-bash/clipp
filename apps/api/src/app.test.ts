@@ -75,6 +75,39 @@ describe("api foundation", () => {
     expect(invalid.json<{ error: string }>().error).toBe("VALIDATION_ERROR");
   });
 
+  it("exposes operational records for accounts, assets, transcripts, plans and job audit", async () => {
+    const app = await buildApp(loadConfig({}));
+    apps.push(app);
+    const channels = await app.server.inject({ method: "GET", url: "/api/v1/channels?pageSize=1" });
+    const sources = await app.server.inject({ method: "GET", url: "/api/v1/sources?pageSize=1" });
+    const candidates = await app.server.inject({ method: "GET", url: "/api/v1/candidates?pageSize=1" });
+    const channelId = channels.json<{ items: Array<{ id: string }> }>().items[0]?.id;
+    const sourceId = sources.json<{ items: Array<{ id: string }> }>().items[0]?.id;
+    const candidateId = candidates.json<{ items: Array<{ id: string }> }>().items[0]?.id;
+    if (!channelId || !sourceId || !candidateId) throw new Error("seed records missing");
+
+    const account = await app.server.inject({ method: "POST", url: "/api/v1/platform-accounts", payload: { channelId, platform: "YOUTUBE", externalAccountId: "youtube-test-account", displayName: "Test channel" } });
+    const accountId = account.json<{ id: string }>().id;
+    const accountUpdate = await app.server.inject({ method: "PATCH", url: `/api/v1/platform-accounts/${accountId}`, payload: { status: "CONNECTED" } });
+    const asset = await app.server.inject({ method: "POST", url: "/api/v1/source-assets", payload: { sourceId, externalId: "asset-1", sourceUrl: "https://example.com/asset-1", title: "Test asset", rightsStatus: "OWNED" } });
+    const assetId = asset.json<{ id: string }>().id;
+    const transcript = await app.server.inject({ method: "POST", url: "/api/v1/transcripts", payload: { sourceAssetId: assetId, provider: "deterministic", language: "en", text: "Test transcript", segments: [{ start: 0, end: 1, text: "Test transcript" }] } });
+    const plan = await app.server.inject({ method: "POST", url: "/api/v1/content-plans", payload: { candidateId, channelId, hook: "Test hook", script: "Test script", title: "Test title", description: "Test description", editPlan: { duration: 1 }, targetDuration: 1 } });
+    const audit = await app.server.inject({ method: "POST", url: "/api/v1/jobs-audit", payload: { queue: "render", jobId: "job-1", type: "render-video", status: "COMPLETED", entityId: candidateId } });
+
+    expect(account.statusCode).toBe(200);
+    expect(accountUpdate.json<{ status: string }>().status).toBe("CONNECTED");
+    expect(asset.statusCode).toBe(200);
+    expect(transcript.statusCode).toBe(200);
+    expect(plan.statusCode).toBe(200);
+    expect(audit.statusCode).toBe(200);
+    await expect(app.server.inject({ method: "GET", url: "/api/v1/platform-accounts" })).resolves.toMatchObject({ statusCode: 200 });
+    await expect(app.server.inject({ method: "GET", url: "/api/v1/source-assets" })).resolves.toMatchObject({ statusCode: 200 });
+    await expect(app.server.inject({ method: "GET", url: "/api/v1/transcripts" })).resolves.toMatchObject({ statusCode: 200 });
+    await expect(app.server.inject({ method: "GET", url: "/api/v1/content-plans" })).resolves.toMatchObject({ statusCode: 200 });
+    await expect(app.server.inject({ method: "GET", url: "/api/v1/jobs-audit" })).resolves.toMatchObject({ statusCode: 200 });
+  });
+
   it("enforces the cost-control gate through the API", async () => {
     const app = await buildApp(loadConfig({ MONTHLY_BUDGET_EUR: "1" }));
     apps.push(app);

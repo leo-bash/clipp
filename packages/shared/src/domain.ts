@@ -65,6 +65,83 @@ export interface Source {
   updatedAt: string;
 }
 
+export interface PlatformAccount {
+  id: string;
+  channelId: string;
+  platform: Platform;
+  externalAccountId: string;
+  displayName: string;
+  status: string;
+  credentialsReference?: string;
+  tokenExpiresAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SourceAsset {
+  id: string;
+  sourceId: string;
+  externalId: string;
+  sourceUrl: string;
+  storageKey?: string;
+  title: string;
+  description?: string;
+  durationSeconds?: number;
+  publishedAt?: string;
+  discoveredAt: string;
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  language?: string;
+  rightsStatus: RightsStatus;
+  metadata?: Record<string, unknown>;
+  contentHash?: string;
+  createdAt: string;
+}
+
+export interface TranscriptRecord {
+  id: string;
+  sourceAssetId: string;
+  provider: string;
+  language: string;
+  text: string;
+  segments: unknown[];
+  confidence?: number;
+  costEur: number;
+  createdAt: string;
+}
+
+export interface ContentPlan {
+  id: string;
+  candidateId: string;
+  channelId: string;
+  hook: string;
+  script: string;
+  title: string;
+  description: string;
+  hashtags: string[];
+  editPlan: Record<string, unknown>;
+  voiceoverRequired: boolean;
+  targetDuration: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface JobAudit {
+  id: string;
+  queue: string;
+  jobId: string;
+  type: string;
+  entityId?: string;
+  status: string;
+  attempt: number;
+  startedAt?: string;
+  completedAt?: string;
+  error?: string;
+  metadata?: Record<string, unknown>;
+}
+
 export interface Candidate {
   id: string;
   channelId: string;
