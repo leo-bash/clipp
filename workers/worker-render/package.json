@@ -14,7 +14,8 @@
   "dependencies": {
     "@shortfactory/config": "workspace:*",
     "@shortfactory/logger": "workspace:*",
-    "@shortfactory/queue": "workspace:*"
+    "@shortfactory/queue": "workspace:*",
+    "@shortfactory/video": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",

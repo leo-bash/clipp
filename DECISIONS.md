@@ -34,3 +34,10 @@
 - Reason: A worker can be retried after reserving but before committing; the reservation record prevents double-reserving and lets failures release capacity safely.
 - Alternatives considered: Incrementing `budgets.reserved_eur` without a record (cannot reconcile retries), checking budget only at commit (allows concurrent overspend).
 - Consequences: The Phase 3 migration adds `cost_reservations`; PostgreSQL reserve/commit/release operations use transactions and conditional updates.
+
+## 2026-09-02 — FFmpeg as the render-worker media engine
+
+- Decision: Use FFprobe for inspection and FFmpeg with H.264/AAC output for the first media engine; subtitles are rendered through temporary ASS files.
+- Reason: Both tools are mature, available in the Alpine render image, and cover crop, trim, caption burn-in, audio normalization and deterministic QC without a paid media service.
+- Alternatives considered: A hosted media API (adds recurring cost and external dependency), browser-side rendering (not suitable for worker reliability or rights controls).
+- Consequences: Render jobs must use absolute paths from a storage adapter, outputs are accepted only after critical QC passes, and the Docker image includes FFmpeg/FFprobe.

@@ -27,12 +27,16 @@ The API never performs heavy FFmpeg work. Render work has a separate worker boun
 - `packages/database`: Drizzle schema, versioned migrations, PostgreSQL repository and in-memory repository.
 - `packages/queue`: BullMQ/Redis boundary with a deterministic mock for local development and tests.
 - `packages/cost-control`: budget ledger, idempotent reservations, hard stop and forecast service.
+- `packages/storage`: storage-provider contract and safe local filesystem adapter with retention cleanup hooks.
+- `packages/video`: FFprobe/FFmpeg renderer, ASS caption burn-in and deterministic media quality control.
 - `packages/shared`: cross-package types and error taxonomy.
 - `infrastructure`: Docker Compose and future deployment scripts.
 
 ## Design constraints
 
 Provider integrations use interfaces/adapters. Paid providers must be gated by cost control before execution. Rights and publication safety gates belong in domain/application packages in later phases. Secrets are runtime configuration only and are never logged or committed.
+
+The render worker owns media processing and receives absolute input/output paths from a storage adapter. It crops landscape or portrait sources into the configured vertical canvas, optionally burns captions, normalizes audio, and runs FFprobe-based QC before a render is accepted. A render container includes FFmpeg and FFprobe; the local adapter remains usable for tests and development.
 
 ## Local modes
 

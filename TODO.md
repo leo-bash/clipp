@@ -1,6 +1,6 @@
 # ShortFactory — TODO
 
-## Current phase: PHASE 2 — CORE DOMAIN
+## Current phase: PHASE 6 — AI PIPELINE
 
 - [x] Analyze repository and environment.
 - [x] Read the complete project specification.
@@ -49,6 +49,17 @@ PHASE 3 acceptance criteria are satisfied by unit/API coverage. Real PostgreSQL 
 - [x] Add rights warning to dashboard and documentation.
 - [x] Add gate and API safety tests.
 
+## PHASE 5 result
+
+- [x] Add path-safe local storage provider and retention cleanup hook.
+- [x] Add FFprobe media inspection and FFmpeg crop/trim rendering.
+- [x] Add optional ASS subtitle burn-in and AAC audio normalization.
+- [x] Add critical media QC checks and render-worker integration.
+- [x] Verify landscape fixture renders to a valid 1080x1920 H.264/AAC MP4.
+- [x] Install FFmpeg/FFprobe in the shared Docker image used by the render worker.
+
+PHASE 5 acceptance criteria are satisfied by the automated fixture test and full local check suite. Docker runtime verification remains pending because Docker is unavailable on this host.
+
 PHASE 4 acceptance criteria are satisfied by unit/API coverage. Rights decisions are explicit and do not assume that editing makes third-party content legal.
 
 ## Deferred to later phases
@@ -56,7 +67,7 @@ PHASE 4 acceptance criteria are satisfied by unit/API coverage. Rights decisions
 - [x] Core domain schema and migrations (Phase 2).
 - [x] Cost control (Phase 3).
 - [x] Rights gate (Phase 4).
-- [ ] Media engine and QC (Phase 5).
-- [ ] FFmpeg rendering and QC (Phase 5).
+- [x] Media engine and QC (Phase 5).
+- [x] FFmpeg rendering and QC (Phase 5).
 - [ ] AI/transcription/planning providers (Phase 6).
 - [ ] Review, scheduling, publishing and analytics (Phases 7–12).

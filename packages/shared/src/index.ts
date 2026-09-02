@@ -66,6 +66,13 @@ export class RightsReviewRequiredError extends AppError {
   }
 }
 
+export class RenderError extends AppError {
+  public constructor(message: string, retryable = false) {
+    super("RENDER_ERROR", message, retryable);
+    this.name = "RenderError";
+  }
+}
+
 import { randomUUID } from "node:crypto";
 
 export function buildCorrelationId(): string {

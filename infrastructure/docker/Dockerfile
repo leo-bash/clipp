@@ -1,6 +1,7 @@
 FROM node:20.19-alpine
 
 WORKDIR /app
+RUN apk add --no-cache ffmpeg
 RUN corepack enable && corepack prepare pnpm@11.19.0 --activate
 
 COPY . .
