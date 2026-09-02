@@ -29,13 +29,13 @@ async function getVideos(): Promise<Video[]> {
   } catch { return []; }
 }
 
-async function getAnalytics(): Promise<{ snapshotCount: number; totals: { views: number; likes: number; comments: number; shares: number } }> {
+async function getAnalytics(): Promise<{ snapshotCount: number; totals: { views: number; likes: number; comments: number; shares: number; followersGained: number } }> {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
   try {
     const response = await fetch(`${apiUrl}/api/v1/analytics/overview`);
-    if (!response.ok) return { snapshotCount: 0, totals: { views: 0, likes: 0, comments: 0, shares: 0 } };
-    return await response.json() as { snapshotCount: number; totals: { views: number; likes: number; comments: number; shares: number } };
-  } catch { return { snapshotCount: 0, totals: { views: 0, likes: 0, comments: 0, shares: 0 } }; }
+    if (!response.ok) return { snapshotCount: 0, totals: { views: 0, likes: 0, comments: 0, shares: 0, followersGained: 0 } };
+    return await response.json() as { snapshotCount: number; totals: { views: number; likes: number; comments: number; shares: number; followersGained: number } };
+  } catch { return { snapshotCount: 0, totals: { views: 0, likes: 0, comments: 0, shares: 0, followersGained: 0 } }; }
 }
 
 async function getPublications(): Promise<Publication[]> {
@@ -83,6 +83,7 @@ export default async function Home(): Promise<React.JSX.Element> {
         <div><small>VIEWS</small><strong>{analytics.totals.views}</strong></div>
         <div><small>LIKES</small><strong>{analytics.totals.likes}</strong></div>
         <div><small>SHARES</small><strong>{analytics.totals.shares}</strong></div>
+        <div><small>FOLLOWERS</small><strong>{analytics.totals.followersGained}</strong></div>
       </section>
       <section className="kpi-section" aria-label="today production status">
         <p className="eyebrow">TODAY</p>
@@ -90,7 +91,7 @@ export default async function Home(): Promise<React.JSX.Element> {
       </section>
       <section className="kpi-section" aria-label="monthly production status">
         <p className="eyebrow">MONTHLY</p>
-        <div className="kpi-grid"><div><small>VIDEOS PRODUCED</small><strong>{videos.length}</strong></div><div><small>PUBLICATIONS</small><strong>{publications.length}</strong></div><div><small>YOUTUBE</small><strong>{publications.filter((publication) => publication.platform === "YOUTUBE").length}</strong></div><div><small>TIKTOK</small><strong>{publications.filter((publication) => publication.platform === "TIKTOK").length}</strong></div><div><small>INSTAGRAM</small><strong>{publications.filter((publication) => publication.platform === "INSTAGRAM").length}</strong></div><div><small>SPEND EUR</small><strong>{spend.toFixed(2)}</strong></div></div>
+        <div className="kpi-grid"><div><small>VIDEOS PRODUCED</small><strong>{videos.length}</strong></div><div><small>PUBLICATIONS</small><strong>{publications.length}</strong></div><div><small>YOUTUBE</small><strong>{publications.filter((publication) => publication.platform === "YOUTUBE").length}</strong></div><div><small>TIKTOK</small><strong>{publications.filter((publication) => publication.platform === "TIKTOK").length}</strong></div><div><small>INSTAGRAM</small><strong>{publications.filter((publication) => publication.platform === "INSTAGRAM").length}</strong></div><div><small>SPEND EUR</small><strong>{spend.toFixed(2)}</strong></div><div><small>COST / VIDEO</small><strong>{videos.length > 0 ? (spend / videos.length).toFixed(2) : "0.00"}</strong></div></div>
       </section>
       <section className="channels" aria-label="configured channels">
         <div>
