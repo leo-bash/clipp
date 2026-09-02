@@ -12,7 +12,7 @@ Browser → nginx (optional) → dashboard (Next.js)
                                ├→ database adapter → PostgreSQL
                                └→ queue adapter    → Redis/BullMQ
 
-worker-light / worker-render → queue adapter → Redis/BullMQ
+orchestrator-worker / worker-light / worker-render / publisher-worker / analytics-worker → queue adapter → Redis/BullMQ
 ```
 
 The API never performs heavy FFmpeg work. Render work has a separate worker boundary so it can move to a dedicated host without changing business interfaces.
@@ -34,6 +34,7 @@ The API never performs heavy FFmpeg work. Render work has a separate worker boun
 - `packages/tts`: replaceable TTS contract with an explicit disabled adapter.
 - `packages/platforms`: common publishing contract, independent mock publishers and timezone-aware scheduler/lock boundary.
 - `packages/analytics`: snapshot collection, PostgreSQL/in-memory stores, overview aggregation and configurable normalized performance score.
+- `packages/orchestrator`: daily target/buffer calculation, centralized pipeline queue scheduling, distributed-lock seam and idempotent job keys.
 - `packages/shared`: cross-package types and error taxonomy.
 - `infrastructure`: Docker Compose and future deployment scripts.
 
@@ -50,6 +51,8 @@ The dashboard review queue is the operator boundary: it reads videos through the
 The publisher worker schedules approved videos through `PublishingScheduler`. YouTube, TikTok and Instagram are independent publisher instances; their results are retained separately and aggregate to `SUCCESS` or `PARTIAL_FAILURE`. Mock publishers return fake URLs. The official YouTube adapter uses OAuth and the Google resumable-upload HTTP flow only; credentials are runtime-only and its safe default is private. The official TikTok adapter uses OAuth plus Content Posting API Direct Post or Upload-to-Draft mode; it has no browser-login fallback. The official Instagram adapter uses the Meta Graph container → status → media_publish flow and reports `NEEDS_CONFIGURATION` when the professional account/app prerequisites are absent.
 
 The analytics worker collects platform snapshots independently and persists them through the analytics store. Performance scoring is normalized and configurable; rights remain an absolute gate, so `BLOCKED` content scores zero regardless of performance.
+
+The orchestrator worker runs the daily planning boundary. It calculates the active-channel target (default 3 × 6 = 18 unique videos), maintains a two-day ready buffer (36 videos), raises queue priority below one day of ready inventory, and reduces processing above 54 ready videos. It enqueues a deterministic batch job for each pipeline queue using an orchestration-date/channel/queue idempotency key. Redis/BullMQ applies the same key as the broker job ID and provides three attempts with exponential backoff; the in-memory adapter mirrors the contract for tests.
 
 ## Local modes
 

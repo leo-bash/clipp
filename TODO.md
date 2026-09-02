@@ -1,6 +1,6 @@
 # ShortFactory — TODO
 
-## Current phase: PHASE 13 — DAILY ORCHESTRATOR
+## Current phase: PHASE 14 — PRODUCTION HARDENING
 
 - [x] Analyze repository and environment.
 - [x] Read the complete project specification.
@@ -145,6 +145,18 @@ PHASE 11 acceptance criteria are satisfied by the adapter tests and full local c
 
 PHASE 12 acceptance criteria are satisfied by analytics/API tests and the full local check suite. External platform analytics calls remain gated by runtime credentials and official adapter availability.
 
+## PHASE 13 result
+
+- [x] Add daily target calculation for active channels (default 3 × 6 = 18 videos/day).
+- [x] Add two-day ready buffer target (36 videos) and high/low processing thresholds.
+- [x] Add centralized scheduling across discovery, ingestion, transcription, analysis, planning, tts, render, qc, review, publish, analytics and cleanup queues.
+- [x] Add deterministic orchestration-date/channel/queue idempotency keys.
+- [x] Configure BullMQ retries, exponential backoff and priority propagation.
+- [x] Add distributed-lock and idempotency-store seams with deterministic tests.
+- [x] Add orchestrator worker and Compose service.
+
+PHASE 13 acceptance criteria are satisfied by orchestrator tests and the full local check suite. The worker is intentionally a scheduling boundary; domain repositories and downstream workers consume the emitted jobs independently.
+
 PHASE 4 acceptance criteria are satisfied by unit/API coverage. Rights decisions are explicit and do not assume that editing makes third-party content legal.
 
 ## Deferred to later phases
@@ -161,3 +173,12 @@ PHASE 4 acceptance criteria are satisfied by unit/API coverage. Rights decisions
 - [x] Official TikTok publishing boundary (Phase 10).
 - [x] Official Instagram publishing boundary (Phase 11).
 - [x] Analytics snapshots and scoring (Phase 12).
+- [x] Daily orchestrator and buffer management (Phase 13).
+
+## Phase 14 — production hardening
+
+- [ ] Add centralized provider rate limiting and Retry-After handling.
+- [ ] Add security controls, audit logging and request limits.
+- [ ] Add dead-letter queue handling and operator inspection endpoints.
+- [ ] Add daily PostgreSQL backup/restore scripts with retention policy.
+- [ ] Add monitoring/runbook and production readiness documentation.

@@ -16,7 +16,8 @@
 | 10 | Official TikTok adapter | Completed |
 | 11 | Official Instagram adapter | Completed |
 | 12 | Analytics snapshots and performance scoring | Completed |
-| 13–14 | Daily orchestrator and production hardening | Pending |
+| 13 | Daily orchestrator, buffers and idempotent queue scheduling | Completed |
+| 14 | Production hardening: security, backups, monitoring, rate limiting, DLQ and runbook | Pending |
 
 ## Phase 1 exit criteria
 
@@ -78,4 +79,8 @@ The dashboard has an operator review queue backed entirely by API calls. An oper
 
 ## Next milestone
 
-Phase 13 will add the daily orchestrator, buffers and queue-driven job scheduling.
+Phase 13 verification
+
+`@shortfactory/orchestrator` calculates the active-channel daily target, defaulting to 18 videos for three channels, maintains a 36-video ready buffer, marks a run HIGH priority below 18 ready videos, and switches to REDUCE above 54. It schedules all twelve pipeline queues with deterministic idempotency keys, queue retries and exponential backoff. Tests cover target calculation, all queue stages, retry-safe re-entry and upper-buffer throttling. The orchestrator worker is included in the Compose topology.
+
+The next milestone is Phase 14 production hardening.

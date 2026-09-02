@@ -6,12 +6,15 @@ export interface QueueJob<TPayload> {
   name: string;
   payload: TPayload;
   correlationId: string;
+  idempotencyKey?: string;
+  priority?: number;
 }
 
 export interface QueueClient {
   readonly mode: ServiceMode;
   ping(): Promise<void>;
   enqueue<TPayload>(queueName: string, job: QueueJob<TPayload>): Promise<void>;
+  getJobs?(): Array<QueueJob<unknown>>;
   close(): Promise<void>;
 }
 
@@ -25,6 +28,10 @@ class MockQueue implements QueueClient {
 
   public async enqueue<TPayload>(queueName: string, job: QueueJob<TPayload>): Promise<void> {
     this.jobs.push({ ...job, name: `${queueName}:${job.name}` });
+  }
+
+  public getJobs(): Array<QueueJob<unknown>> {
+    return [...this.jobs];
   }
 
   public async close(): Promise<void> {
@@ -50,9 +57,10 @@ class RedisQueue implements QueueClient {
     const queue = this.queues.get(queueName) ?? new Queue(queueName, { connection: this.connection });
     this.queues.set(queueName, queue);
     await queue.add(job.name, job.payload, {
-      jobId: `${job.name}:${job.correlationId}`,
+      jobId: job.idempotencyKey ?? `${job.name}:${job.correlationId}`,
       attempts: 3,
       backoff: { type: "exponential", delay: 1000 },
+      ...(job.priority === undefined ? {} : { priority: job.priority }),
       removeOnComplete: 100,
       removeOnFail: 100
     });
