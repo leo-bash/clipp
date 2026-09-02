@@ -31,4 +31,16 @@ describe("api foundation", () => {
       expect.objectContaining({ mode: "mock", status: "degraded" })
     ]));
   });
+
+  it("serves seeded channels and validates CRUD input", async () => {
+    const app = await buildApp(loadConfig({}));
+    apps.push(app);
+    const channels = await app.server.inject({ method: "GET", url: "/api/v1/channels" });
+    const invalid = await app.server.inject({ method: "POST", url: "/api/v1/channels", payload: { name: "missing fields" } });
+
+    expect(channels.statusCode).toBe(200);
+    expect(channels.json<{ total: number }>().total).toBe(3);
+    expect(invalid.statusCode).toBe(400);
+    expect(invalid.json<{ error: string }>().error).toBe("VALIDATION_ERROR");
+  });
 });

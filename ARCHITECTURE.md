@@ -24,7 +24,7 @@ The API never performs heavy FFmpeg work. Render work has a separate worker boun
 - `workers/*`: process entrypoints; business logic will live in packages, not worker bootstraps.
 - `packages/config`: validated runtime configuration.
 - `packages/logger`: Pino logger with secret redaction defaults.
-- `packages/database`: database health/client boundary; Prisma/domain schema starts in Phase 2.
+- `packages/database`: Drizzle schema, versioned migrations, PostgreSQL repository and in-memory repository.
 - `packages/queue`: BullMQ/Redis boundary with a deterministic mock for local development and tests.
 - `packages/shared`: cross-package types and error taxonomy.
 - `infrastructure`: Docker Compose and future deployment scripts.

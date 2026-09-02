@@ -20,3 +20,10 @@
 - Reason: Docker is unavailable in the current environment, but the service shell and tests must still be runnable. The mode is visible in readiness output and is never presented as a real dependency.
 - Alternatives considered: Make external services mandatory (blocks local verification), silently swallow connection failures (unsafe false-green health).
 - Consequences: Production deployments must set `DATABASE_MODE=postgres` and `QUEUE_MODE=redis`; Phase 2 will make persistence mandatory for domain operations.
+
+## 2026-09-02 — Drizzle ORM for the core domain
+
+- Decision: Use Drizzle ORM with the node-postgres driver and checked-in SQL migrations.
+- Reason: It preserves typed table definitions, explicit SQL migrations and a small runtime footprint suited to the €50/month constraint.
+- Alternatives considered: Prisma (heavier generated client/runtime), raw SQL only (less type safety and weaker repository ergonomics).
+- Consequences: Schema changes must update `schema.ts` and produce a new migration; migrations run through the explicit database command before API startup in Compose.

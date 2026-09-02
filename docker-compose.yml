@@ -46,15 +46,28 @@ services:
     ports:
       - "4000:4000"
     depends_on:
-      postgres:
-        condition: service_healthy
       redis:
         condition: service_healthy
+      database-migrate:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:4000/ready').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 10
+
+  database-migrate:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile
+    command: ["sh", "-c", "pnpm --filter @shortfactory/database db:migrate && pnpm --filter @shortfactory/database db:seed"]
+    environment:
+      NODE_ENV: development
+      DATABASE_MODE: postgres
+      DATABASE_URL: postgresql://shortfactory:shortfactory@postgres:5432/shortfactory
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   dashboard:
     build:

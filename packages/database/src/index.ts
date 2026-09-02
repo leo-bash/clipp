@@ -1,14 +1,20 @@
 import { Pool } from "pg";
 import type { ServiceMode } from "@shortfactory/shared";
+import { MemoryDomainStore, createPostgresDomainStore, type DomainStore } from "./domain.js";
+
+export * from "./domain.js";
+export * from "./schema.js";
 
 export interface DatabaseClient {
   readonly mode: ServiceMode;
+  readonly domain: DomainStore;
   ping(): Promise<void>;
   close(): Promise<void>;
 }
 
 class MemoryDatabase implements DatabaseClient {
   public readonly mode = "memory" as const;
+  public readonly domain = new MemoryDomainStore();
 
   public async ping(): Promise<void> {
     return Promise.resolve();
@@ -22,9 +28,11 @@ class MemoryDatabase implements DatabaseClient {
 class PostgresDatabase implements DatabaseClient {
   public readonly mode = "postgres" as const;
   private readonly pool: Pool;
+  public readonly domain: DomainStore;
 
   public constructor(url: string) {
     this.pool = new Pool({ connectionString: url, max: 5 });
+    this.domain = createPostgresDomainStore({ pool: this.pool });
   }
 
   public async ping(): Promise<void> {

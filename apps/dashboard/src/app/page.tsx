@@ -1,6 +1,24 @@
+import type { Channel } from "@shortfactory/shared";
+
+export const dynamic = "force-dynamic";
+
 const services = ["API", "Postgres", "Redis", "FFmpeg"];
 
-export default function Home(): React.JSX.Element {
+async function getChannels(): Promise<Channel[]> {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+  try {
+    const response = await fetch(`${apiUrl}/api/v1/channels?page=1&pageSize=20`);
+    if (!response.ok) return [];
+    const payload = await response.json() as { items?: Channel[] };
+    return payload.items ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export default async function Home(): Promise<React.JSX.Element> {
+  const channels = await getChannels();
+
   return (
     <main className="shell">
       <p className="eyebrow">SHORTFACTORY / FOUNDATION</p>
@@ -14,6 +32,17 @@ export default function Home(): React.JSX.Element {
             <small>{service === "FFmpeg" ? "local capability" : "foundation ready"}</small>
           </div>
         ))}
+      </section>
+      <section className="channels" aria-label="configured channels">
+        <div>
+          <p className="eyebrow">CHANNELS</p>
+          <h2>Configured editorial lanes</h2>
+        </div>
+        {channels.length === 0 ? <p className="muted">No channels available. Start the API and seed the database.</p> : (
+          <div className="channel-list">
+            {channels.map((channel) => <div className="channel-row" key={channel.id}><span>{channel.name}</span><small>{channel.type} · {channel.videosPerDay}/day</small></div>)}
+          </div>
+        )}
       </section>
     </main>
   );

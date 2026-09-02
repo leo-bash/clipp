@@ -1,5 +1,7 @@
 export type ServiceMode = "memory" | "postgres" | "mock" | "redis";
 
+export * from "./domain.js";
+
 export type HealthStatus = "ok" | "degraded" | "down";
 
 export interface DependencyHealth {

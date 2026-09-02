@@ -6,6 +6,8 @@ import { createDatabase, type DatabaseClient } from "@shortfactory/database";
 import { createLogger } from "@shortfactory/logger";
 import { createQueue, type QueueClient } from "@shortfactory/queue";
 import type { DependencyHealth, HealthStatus, ReadinessResponse } from "@shortfactory/shared";
+import { AppError } from "@shortfactory/shared";
+import { registerDomainRoutes, isRequestValidationError } from "./domain-routes.js";
 
 export interface AppDependencies {
   database: DatabaseClient;
@@ -30,12 +32,23 @@ export async function buildApp(config: AppConfig, supplied?: Partial<AppDependen
     database: supplied?.database ?? createDatabase(config.DATABASE_MODE, config.DATABASE_URL),
     queue: supplied?.queue ?? createQueue(config.QUEUE_MODE, config.REDIS_URL)
   };
+  await dependencies.database.domain.ensureSeedData();
   // Fastify's logger generic is intentionally narrower than Pino's runtime logger.
   // The unknown boundary keeps the shared redacting logger without weakening the rest of the app types.
   const server = Fastify({ loggerInstance: logger }) as unknown as FastifyInstance;
 
   await server.register(helmet);
   await server.register(cors, { origin: config.CORS_ORIGIN });
+  server.setErrorHandler((error, request, reply) => {
+    if (isRequestValidationError(error)) return reply.code(400).send({ error: "VALIDATION_ERROR", details: error.issues });
+    if (error instanceof Error && error.message === "NOT_FOUND") return reply.code(404).send({ error: "NOT_FOUND" });
+    if (error instanceof AppError) return reply.code(400).send({ error: error.code, message: error.message });
+    request.log.error({ err: error }, "unhandled request error");
+    return reply.code(500).send({ error: "INTERNAL_ERROR" });
+  });
+
+  await registerDomainRoutes(server, dependencies.database.domain);
+  await registerDomainRoutes(server, dependencies.database.domain, "/api/v1");
 
   server.get("/health", async () => ({
     status: "ok",
