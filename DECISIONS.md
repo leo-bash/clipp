@@ -27,3 +27,10 @@
 - Reason: It preserves typed table definitions, explicit SQL migrations and a small runtime footprint suited to the €50/month constraint.
 - Alternatives considered: Prisma (heavier generated client/runtime), raw SQL only (less type safety and weaker repository ergonomics).
 - Consequences: Schema changes must update `schema.ts` and produce a new migration; migrations run through the explicit database command before API startup in Compose.
+
+## 2026-09-02 — Reservations as a first-class cost-control record
+
+- Decision: Persist cost reservations separately from final cost events, keyed by an idempotency key.
+- Reason: A worker can be retried after reserving but before committing; the reservation record prevents double-reserving and lets failures release capacity safely.
+- Alternatives considered: Incrementing `budgets.reserved_eur` without a record (cannot reconcile retries), checking budget only at commit (allows concurrent overspend).
+- Consequences: The Phase 3 migration adds `cost_reservations`; PostgreSQL reserve/commit/release operations use transactions and conditional updates.

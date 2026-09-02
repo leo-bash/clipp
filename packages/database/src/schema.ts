@@ -218,6 +218,20 @@ export const budgets = pgTable("budgets", {
   createdAt: createdAt()
 }, (table) => ({ scopePeriodUnique: uniqueIndex("budgets_scope_scope_id_period_unique").on(table.scope, table.scopeId, table.period) }));
 
+export const costReservations = pgTable("cost_reservations", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  idempotencyKey: text("idempotency_key").notNull(),
+  budgetId: uuid("budget_id").notNull().references(() => budgets.id, { onDelete: "cascade" }),
+  provider: text("provider").notNull(),
+  service: text("service").notNull(),
+  operation: text("operation").notNull(),
+  amountEur: real("amount_eur").notNull(),
+  status: text("status").notNull().default("RESERVED"),
+  costId: uuid("cost_id").references(() => costs.id, { onDelete: "set null" }),
+  createdAt: createdAt(),
+  updatedAt: updatedAt()
+}, (table) => ({ idempotencyUnique: uniqueIndex("cost_reservations_idempotency_unique").on(table.idempotencyKey) }));
+
 export const jobsAudit = pgTable("jobs_audit", {
   id: uuid("id").defaultRandom().primaryKey(),
   queue: text("queue").notNull(),
@@ -232,6 +246,6 @@ export const jobsAudit = pgTable("jobs_audit", {
   metadataJson: jsonb("metadata_json").$type<Record<string, unknown>>()
 });
 
-export const schema = { users, channels, platformAccounts, sources, sourceAssets, candidates, transcripts, contentPlans, videos, publications, analyticsSnapshots, costs, budgets, jobsAudit };
+export const schema = { users, channels, platformAccounts, sources, sourceAssets, candidates, transcripts, contentPlans, videos, publications, analyticsSnapshots, costs, budgets, costReservations, jobsAudit };
 
 export const channelRelations = relations(channels, ({ many }) => ({ platformAccounts: many(platformAccounts), candidates: many(candidates), videos: many(videos) }));

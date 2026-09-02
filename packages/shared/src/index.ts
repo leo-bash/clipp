@@ -45,6 +45,13 @@ export class ProviderError extends AppError {
   }
 }
 
+export class BudgetExceededError extends AppError {
+  public constructor(message = "budget limit exceeded") {
+    super("BUDGET_EXCEEDED", message);
+    this.name = "BudgetExceededError";
+  }
+}
+
 import { randomUUID } from "node:crypto";
 
 export function buildCorrelationId(): string {

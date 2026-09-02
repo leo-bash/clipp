@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | 1 | Foundation: monorepo, TypeScript, config, logger, database/Redis queue boundaries, Docker, health checks | Completed |
 | 2 | Core domain: schema, seed data, channels/sources/candidates/videos/publications/costs/budgets CRUD | Completed |
-| 3 | Cost engine and forecast | Pending |
+| 3 | Cost engine and forecast | Completed |
 | 4 | Rights safety gate | Pending |
 | 5 | Storage, FFmpeg renderer and QC | Pending |
 | 6 | Transcription, analysis and content planning adapters | Pending |
@@ -32,6 +32,10 @@
 
 Drizzle schema and versioned migration cover the 14 entities from the specification. PostgreSQL and in-memory repositories expose the core domain operations; the API exposes validated, paginated CRUD/state endpoints under both `/` and `/api/v1`. Seed data is idempotent, and the dashboard reads the three seeded channels through the API. `drizzle-kit check` and the full `pnpm check` pass. Real PostgreSQL execution remains pending Docker availability on this host.
 
+## Phase 3 verification
+
+`CostControlService` implements reservations, idempotency, commit/release, hard stop and forecast thresholds. The API exposes forecast and reservation endpoints, while PostgreSQL uses atomic budget updates and the `cost_reservations` migration. Tests verify a €1 budget stops the next job, duplicate reservation keys do not double-reserve, releases restore capacity, and forecast warnings are emitted.
+
 ## Next milestone
 
-Phase 3 will add the cost engine, reservations, hard stop and forecasting without changing the Phase 2 process boundaries.
+Phase 4 will add the mandatory rights safety gate without changing the Phase 3 process boundaries.

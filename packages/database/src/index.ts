@@ -8,6 +8,7 @@ export * from "./schema.js";
 export interface DatabaseClient {
   readonly mode: ServiceMode;
   readonly domain: DomainStore;
+  getPostgresPool(): Pool | undefined;
   ping(): Promise<void>;
   close(): Promise<void>;
 }
@@ -15,6 +16,8 @@ export interface DatabaseClient {
 class MemoryDatabase implements DatabaseClient {
   public readonly mode = "memory" as const;
   public readonly domain = new MemoryDomainStore();
+
+  public getPostgresPool(): undefined { return undefined; }
 
   public async ping(): Promise<void> {
     return Promise.resolve();
@@ -34,6 +37,8 @@ class PostgresDatabase implements DatabaseClient {
     this.pool = new Pool({ connectionString: url, max: 5 });
     this.domain = createPostgresDomainStore({ pool: this.pool });
   }
+
+  public getPostgresPool(): Pool { return this.pool; }
 
   public async ping(): Promise<void> {
     await this.pool.query("SELECT 1");

@@ -29,10 +29,22 @@ PHASE 1 acceptance criteria are satisfied for the available environment. Docker 
 
 PHASE 2 acceptance criteria are satisfied in the available environment. Live PostgreSQL migration/seed execution is pending Docker availability; the Compose path is configured.
 
+## PHASE 3 result
+
+- [x] Add cost-control package with PostgreSQL and in-memory ledgers.
+- [x] Add idempotent reservations and atomic hard-stop enforcement.
+- [x] Add commit/release and cost logging paths.
+- [x] Add 50/75/90/100% warnings and month-end forecast.
+- [x] Add API forecast/reservation endpoints.
+- [x] Test artificial €1 budget exhaustion and duplicate reservations.
+
+PHASE 3 acceptance criteria are satisfied by unit/API coverage. Real PostgreSQL execution remains pending Docker availability; Compose includes all migrations before API startup.
+
 ## Deferred to later phases
 
 - [x] Core domain schema and migrations (Phase 2).
-- [ ] Cost control and rights gate (Phases 3–4).
+- [x] Cost control (Phase 3).
+- [ ] Rights gate (Phase 4).
 - [ ] FFmpeg rendering and QC (Phase 5).
 - [ ] AI/transcription/planning providers (Phase 6).
 - [ ] Review, scheduling, publishing and analytics (Phases 7–12).

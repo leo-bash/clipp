@@ -43,4 +43,18 @@ describe("api foundation", () => {
     expect(invalid.statusCode).toBe(400);
     expect(invalid.json<{ error: string }>().error).toBe("VALIDATION_ERROR");
   });
+
+  it("enforces the cost-control gate through the API", async () => {
+    const app = await buildApp(loadConfig({ MONTHLY_BUDGET_EUR: "1" }));
+    apps.push(app);
+    const payload = { scope: "GLOBAL", scopeId: "global", period: "2026-09", idempotencyKey: "api-reservation", amount: 1, provider: "test", service: "tts", operation: "generate" };
+    const first = await app.server.inject({ method: "POST", url: "/api/v1/cost-control/reserve", payload });
+    const second = await app.server.inject({ method: "POST", url: "/api/v1/cost-control/reserve", payload: { ...payload, idempotencyKey: "api-reservation-2", amount: 0.01 } });
+    const forecast = await app.server.inject({ method: "GET", url: "/api/v1/costs/forecast?period=2026-09" });
+
+    expect(first.statusCode).toBe(200);
+    expect(second.statusCode).toBe(400);
+    expect(second.json<{ error: string }>().error).toBe("BUDGET_EXCEEDED");
+    expect(forecast.statusCode).toBe(200);
+  });
 });

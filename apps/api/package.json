@@ -14,6 +14,7 @@
     "@fastify/cors": "^11.0.2",
     "@fastify/helmet": "^13.0.2",
     "@shortfactory/config": "workspace:*",
+    "@shortfactory/cost-control": "workspace:*",
     "@shortfactory/database": "workspace:*",
     "@shortfactory/logger": "workspace:*",
     "@shortfactory/queue": "workspace:*",

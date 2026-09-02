@@ -3,6 +3,7 @@ import helmet from "@fastify/helmet";
 import Fastify, { type FastifyInstance } from "fastify";
 import type { AppConfig } from "@shortfactory/config";
 import { createDatabase, type DatabaseClient } from "@shortfactory/database";
+import { createPostgresCostControlLedger, CostControlService, InMemoryCostControlLedger, type CostControlService as CostControlServiceType } from "@shortfactory/cost-control";
 import { createLogger } from "@shortfactory/logger";
 import { createQueue, type QueueClient } from "@shortfactory/queue";
 import type { DependencyHealth, HealthStatus, ReadinessResponse } from "@shortfactory/shared";
@@ -12,6 +13,7 @@ import { registerDomainRoutes, isRequestValidationError } from "./domain-routes.
 export interface AppDependencies {
   database: DatabaseClient;
   queue: QueueClient;
+  costControl: CostControlServiceType;
 }
 
 export interface ShortFactoryApp {
@@ -28,9 +30,14 @@ function statusFromChecks(checks: DependencyHealth[]): HealthStatus {
 
 export async function buildApp(config: AppConfig, supplied?: Partial<AppDependencies>): Promise<ShortFactoryApp> {
   const logger = createLogger(config.LOG_LEVEL);
+  const database = supplied?.database ?? createDatabase(config.DATABASE_MODE, config.DATABASE_URL);
   const dependencies: AppDependencies = {
-    database: supplied?.database ?? createDatabase(config.DATABASE_MODE, config.DATABASE_URL),
-    queue: supplied?.queue ?? createQueue(config.QUEUE_MODE, config.REDIS_URL)
+    database,
+    queue: supplied?.queue ?? createQueue(config.QUEUE_MODE, config.REDIS_URL),
+    costControl: supplied?.costControl ?? new CostControlService(
+      dependenciesLedger(database),
+      { monthlyBudgetEur: config.MONTHLY_BUDGET_EUR }
+    )
   };
   await dependencies.database.domain.ensureSeedData();
   // Fastify's logger generic is intentionally narrower than Pino's runtime logger.
@@ -47,8 +54,8 @@ export async function buildApp(config: AppConfig, supplied?: Partial<AppDependen
     return reply.code(500).send({ error: "INTERNAL_ERROR" });
   });
 
-  await registerDomainRoutes(server, dependencies.database.domain);
-  await registerDomainRoutes(server, dependencies.database.domain, "/api/v1");
+  await registerDomainRoutes(server, dependencies.database.domain, dependencies.costControl);
+  await registerDomainRoutes(server, dependencies.database.domain, dependencies.costControl, "/api/v1");
 
   server.get("/health", async () => ({
     status: "ok",
@@ -97,4 +104,9 @@ export async function buildApp(config: AppConfig, supplied?: Partial<AppDependen
       await dependencies.database.close();
     }
   };
+}
+
+function dependenciesLedger(database: DatabaseClient) {
+  const pool = database.getPostgresPool();
+  return pool ? createPostgresCostControlLedger(pool) : new InMemoryCostControlLedger();
 }

@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z, ZodError } from "zod";
+import type { BudgetKey, CostControlService, ReservationRequest } from "@shortfactory/cost-control";
 import { type DomainStore, type PageParams, type CreateBudgetInput, type CreateCandidateInput, type CreateChannelInput, type CreateCostInput, type CreatePublicationInput, type CreateSourceInput, type CreateVideoInput, type UpdateChannelInput, type UpdateSourceInput } from "@shortfactory/database";
 import { channelStatuses, channelTypes, platforms, publicationStatuses, rightsStatuses } from "@shortfactory/shared";
 
@@ -13,6 +14,9 @@ const publicationSchema = z.object({ videoId: z.string().uuid(), platform: z.enu
 const costSchema = z.object({ provider: z.string().trim().min(1).max(80), service: z.string().trim().min(1).max(80), operation: z.string().trim().min(1).max(120), channelId: z.string().uuid().optional(), candidateId: z.string().uuid().optional(), videoId: z.string().uuid().optional(), quantity: z.number().positive(), unit: z.string().trim().min(1).max(40), estimatedCostEur: z.number().nonnegative(), actualCostEur: z.number().nonnegative().optional() });
 const budgetSchema = z.object({ scope: z.string().trim().min(1).max(40), scopeId: z.string().trim().min(1).max(120), period: z.string().trim().regex(/^\d{4}-\d{2}$/), budgetEur: z.number().nonnegative(), warningThreshold: z.number().min(0).max(1), hardStop: z.boolean() });
 const rejectSchema = z.object({ reason: z.string().trim().min(1).max(1000) });
+const budgetKeySchema = z.object({ scope: z.string().trim().min(1).max(40).default("GLOBAL"), scopeId: z.string().trim().min(1).max(120).default("global"), period: z.string().trim().regex(/^\d{4}-\d{2}$/).default(`${new Date().getUTCFullYear()}-${String(new Date().getUTCMonth() + 1).padStart(2, "0")}`) });
+const reservationSchema = budgetKeySchema.extend({ idempotencyKey: z.string().trim().min(1).max(200), amount: z.number().positive(), provider: z.string().trim().min(1).max(80), service: z.string().trim().min(1).max(80), operation: z.string().trim().min(1).max(120), channelId: z.string().uuid().optional(), candidateId: z.string().uuid().optional(), videoId: z.string().uuid().optional() });
+const commitSchema = z.object({ actualAmount: z.number().nonnegative(), provider: z.string().trim().min(1).max(80), service: z.string().trim().min(1).max(80), operation: z.string().trim().min(1).max(120), quantity: z.number().positive(), unit: z.string().trim().min(1).max(40), estimatedCostEur: z.number().nonnegative(), channelId: z.string().uuid().optional(), candidateId: z.string().uuid().optional(), videoId: z.string().uuid().optional() });
 
 type Params = { id: string };
 
@@ -20,7 +24,7 @@ function parsePage(query: unknown): PageParams { return pageSchema.parse(query);
 function body<T>(value: unknown, schema: z.ZodType<T>): T { return schema.parse(value); }
 function notFound<T>(value: T | undefined): T { if (!value) throw new Error("NOT_FOUND"); return value; }
 
-export async function registerDomainRoutes(server: FastifyInstance, store: DomainStore, prefix = ""): Promise<void> {
+export async function registerDomainRoutes(server: FastifyInstance, store: DomainStore, costControl: CostControlService, prefix = ""): Promise<void> {
   server.get(`${prefix}/channels`, async (request) => store.listChannels(parsePage(request.query)));
   server.post(`${prefix}/channels`, async (request) => store.createChannel(body(request.body, channelSchema) as CreateChannelInput));
   server.get<{ Params: Params }>(`${prefix}/channels/:id`, async (request) => notFound(await store.getChannel(idSchema.parse(request.params).id)));
@@ -50,6 +54,10 @@ export async function registerDomainRoutes(server: FastifyInstance, store: Domai
   server.post(`${prefix}/costs`, async (request) => store.createCost(body(request.body, costSchema) as CreateCostInput));
   server.get(`${prefix}/budgets`, async (request) => store.listBudgets(parsePage(request.query)));
   server.post(`${prefix}/budgets`, async (request) => store.createBudget(body(request.body, budgetSchema) as CreateBudgetInput));
+  server.get(`${prefix}/costs/forecast`, async (request) => costControl.getForecast(body(request.query, budgetKeySchema) as BudgetKey));
+  server.post(`${prefix}/cost-control/reserve`, async (request) => costControl.reserve(body(request.body, reservationSchema) as ReservationRequest));
+  server.post<{ Params: Params }>(`${prefix}/cost-control/:id/release`, async (request) => { await costControl.release(idSchema.parse(request.params).id); return { status: "RELEASED" }; });
+  server.post<{ Params: Params }>(`${prefix}/cost-control/:id/commit`, async (request) => { const input = body(request.body, commitSchema); const { actualAmount, ...cost } = input; return costControl.commit(idSchema.parse(request.params).id, actualAmount, cost); });
 }
 
 export function isRequestValidationError(error: unknown): error is ZodError { return error instanceof ZodError; }
