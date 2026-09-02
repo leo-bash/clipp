@@ -43,4 +43,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: DATABASE_MODE=postgres DATABASE_URL=postgresql://shortfactory:shortfactory@localhost:5432/shortfactory pnpm --filter @shortfactory/database db:migrate
       - run: DATABASE_MODE=postgres DATABASE_URL=postgresql://shortfactory:shortfactory@localhost:5432/shortfactory pnpm --filter @shortfactory/database db:seed
+      - run: RUN_POSTGRES_INTEGRATION=1 DATABASE_URL=postgresql://shortfactory:shortfactory@localhost:5432/shortfactory pnpm --filter @shortfactory/database test
+      - run: RUN_REDIS_INTEGRATION=1 REDIS_URL=redis://localhost:6379 pnpm --filter @shortfactory/queue test
       - run: pnpm check

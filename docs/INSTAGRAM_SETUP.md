@@ -1,3 +1,3 @@
 # Instagram setup
 
-Official Meta API integration is planned for Phase 11. The platform must remain independently disableable when account prerequisites are missing.
+The official Instagram adapter uses the Meta Graph container → processing-status → `media_publish` flow for configured professional accounts. Set the runtime access token and Instagram user ID; otherwise the adapter reports `NEEDS_CONFIGURATION` and the other platforms remain independent. Browser login automation is not used.

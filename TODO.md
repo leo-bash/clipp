@@ -203,6 +203,7 @@ PHASE 14 acceptance criteria are satisfied by the API/platform/queue tests and t
 - [x] Show most-successful channel and format on the dashboard home.
 - [x] Persist `RUNNING`/`COMPLETED`/`FAILED` lifecycle audits for every queue consumer.
 - [x] Configure every Compose worker with PostgreSQL, Redis and migration-complete dependencies for durable audits.
+- [x] Add CI-gated PostgreSQL and Redis integration smoke tests against the configured service containers.
 - [ ] Run Docker Compose, PostgreSQL migration/seed and Redis integration on a host with Docker.
 - [x] Add a dedicated typed TTS queue consumer with deterministic cache-first local behavior.
 

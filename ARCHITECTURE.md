@@ -59,4 +59,4 @@ The API applies secure headers, a bounded request body, configurable request rat
 
 ## Local modes
 
-`DATABASE_MODE=memory` and `QUEUE_MODE=mock` make the service shell runnable without Docker. They are explicit development adapters, not production fallbacks. Docker Compose sets PostgreSQL and Redis modes and readiness checks those real dependencies.
+`DATABASE_MODE=memory` and `QUEUE_MODE=mock` make the service shell runnable without Docker. They are explicit development adapters, not production fallbacks. Docker Compose sets PostgreSQL and Redis modes and readiness checks those real dependencies. CI runs the versioned migrations/seed and smoke-tests both real adapters; local integration tests remain skipped unless their corresponding `RUN_*_INTEGRATION=1` flag is set.

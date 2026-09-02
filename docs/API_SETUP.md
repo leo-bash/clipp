@@ -5,3 +5,5 @@ The API listens on port 4000 by default. `GET /health` is a liveness check and `
 Local development keeps `AUTH_MODE=disabled` so the deterministic dashboard and tests can run without credentials. For a deployed API, set `AUTH_MODE=api-key` and provide distinct runtime-only values for `ADMIN_API_KEY`, `EDITOR_API_KEY` and `VIEWER_API_KEY`.
 
 Send the selected key in the `x-api-key` header. Health, readiness and metrics endpoints remain public for probes; resource reads require any configured role, while mutations require ADMIN or EDITOR. The API does not use cookie authentication, so the API-key header boundary avoids cookie-based CSRF; do not expose keys to browser bundles.
+
+Operational resources are available under `/api/v1`: `platform-accounts`, `source-assets`, `transcripts`, `content-plans` and `jobs-audit`, each with paginated GET collection endpoints and validated POST creation (platform accounts also support PATCH status updates). Credentials are represented only by a runtime `credentialsReference`; access tokens are never accepted as persisted domain fields.
