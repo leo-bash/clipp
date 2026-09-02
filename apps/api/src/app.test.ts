@@ -73,6 +73,20 @@ describe("api foundation", () => {
     expect(forecast.statusCode).toBe(200);
   });
 
+  it("automatically stops paid API reservations when the month-end forecast exceeds the budget", async () => {
+    const app = await buildApp(loadConfig({ MONTHLY_BUDGET_EUR: "50" }));
+    apps.push(app);
+    const reservation = await app.server.inject({ method: "POST", url: "/api/v1/cost-control/reserve", payload: { scope: "GLOBAL", scopeId: "global", period: "2026-09", idempotencyKey: "forecast-auto-stop", amount: 10, provider: "test", service: "llm", operation: "analysis" } });
+    const reservationId = reservation.json<{ id: string }>().id;
+    await app.server.inject({ method: "POST", url: `/api/v1/cost-control/${reservationId}/commit`, payload: { actualAmount: 10, provider: "test", service: "llm", operation: "analysis", quantity: 1, unit: "request", estimatedCostEur: 10 } });
+    const forecast = await app.server.inject({ method: "GET", url: "/api/v1/costs/forecast?period=2026-09" });
+    const blocked = await app.server.inject({ method: "POST", url: "/api/v1/cost-control/reserve", payload: { scope: "GLOBAL", scopeId: "global", period: "2026-09", idempotencyKey: "forecast-auto-stop-next", amount: 0.01, provider: "test", service: "tts", operation: "generate" } });
+
+    expect(forecast.json<{ warnings: string[] }>().warnings).toContain("PAID_APIS_AUTO_STOPPED");
+    expect(blocked.statusCode).toBe(400);
+    expect(blocked.json<{ error: string }>().error).toBe("PAID_APIS_STOPPED");
+  });
+
   it("blocks forbidden media before render and prevents unknown media from auto-publishing", async () => {
     const app = await buildApp(loadConfig({}));
     apps.push(app);

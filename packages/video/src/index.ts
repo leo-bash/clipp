@@ -19,6 +19,10 @@ export interface RenderPlan {
   height?: number;
   trimStart?: number;
   duration?: number;
+  cuts?: Array<{ start: number; end: number }>;
+  introPath?: string;
+  outroPath?: string;
+  zoom?: number;
   captions?: CaptionCue[];
   subtitleOptions?: SubtitleOptions;
   overlayPath?: string;
@@ -75,28 +79,46 @@ export class FFmpegRenderer implements VideoRenderer {
     assertPath(plan.inputPath);
     assertPath(plan.outputPath);
     if (plan.overlayPath) assertPath(plan.overlayPath);
+    if (plan.introPath) assertPath(plan.introPath);
+    if (plan.outroPath) assertPath(plan.outroPath);
     if (plan.thumbnailOutputPath) assertPath(plan.thumbnailOutputPath);
     const width = plan.width ?? qcConfig.width;
     const height = plan.height ?? qcConfig.height;
     if (width <= 0 || height <= 0 || width % 2 !== 0 || height % 2 !== 0) throw new ValidationError("render dimensions must be positive even numbers");
-    const sourceProbe = await probeMedia(plan.inputPath, this.ffprobeBinary);
-    const hasAudio = sourceProbe.streams.some((stream) => stream.codecType === "audio");
-    if ((plan.audioRequired ?? qcConfig.audioRequired) && !hasAudio) throw new RenderError("audio is required but input has no audio");
     const temporaryDir = await mkdtemp(path.join(os.tmpdir(), "shortfactory-render-"));
     let subtitlePath: string | undefined;
     const started = Date.now();
     try {
-      const filters = [`scale=${width}:${height}:force_original_aspect_ratio=increase`, `crop=${width}:${height}`, "setsar=1"];
+      const effectiveInputPath = plan.introPath || plan.outroPath ? path.join(temporaryDir, "composition.mp4") : plan.inputPath;
+      if (effectiveInputPath !== plan.inputPath) await composeIntroOutro(plan, effectiveInputPath, this.ffmpegBinary);
+      const sourceProbe = await probeMedia(effectiveInputPath, this.ffprobeBinary);
+      const hasAudio = sourceProbe.streams.some((stream) => stream.codecType === "audio");
+      if ((plan.audioRequired ?? qcConfig.audioRequired) && !hasAudio) throw new RenderError("audio is required but input has no audio");
+      const zoom = clampZoom(plan.zoom);
+      const filters = zoom > 1 ? [`scale=${Math.round(width * zoom)}:${Math.round(height * zoom)}:force_original_aspect_ratio=increase`, `crop=${width}:${height}:(iw-${width})/2:(ih-${height})/2`, "setsar=1"] : [`scale=${width}:${height}:force_original_aspect_ratio=increase`, `crop=${width}:${height}`, "setsar=1"];
+      if (plan.cuts && plan.cuts.length > 0) filters.push(`select='${cutExpression(plan.cuts)}'`, "setpts=N/FRAME_RATE/TB");
       if (plan.captions && plan.captions.length > 0) {
         subtitlePath = path.join(temporaryDir, "captions.ass");
         await writeFile(subtitlePath, renderAss(plan.captions, plan.subtitleOptions));
-        filters.push(await captionFilter(this.ffmpegBinary, subtitlePath));
       }
-      const videoFilter = filters.join(",");
-      const inputArgs = ["-y", "-hide_banner", "-loglevel", "error", ...(plan.trimStart ? ["-ss", String(plan.trimStart)] : []), "-i", plan.inputPath, ...(plan.overlayPath ? ["-i", plan.overlayPath] : []), ...(plan.duration ? ["-t", String(plan.duration)] : [])];
-      const mappedVideo = plan.overlayPath ? ["-filter_complex", `[0:v]${videoFilter}[base];[1:v]format=rgba[overlay];[base][overlay]overlay=0:0[v]`, "-map", "[v]"] : ["-vf", videoFilter, "-map", "0:v:0"];
-      const audioFilter = `loudnorm=I=-16:TP=-1.5:LRA=11${plan.audioVolume === undefined ? "" : `,volume=${clampVolume(plan.audioVolume)}`}`;
-      const args = [...inputArgs, ...mappedVideo, ...(hasAudio ? ["-map", "0:a:0", "-c:a", "aac", "-b:a", "128k", "-af", audioFilter, "-shortest"] : ["-an"]), "-c:v", "libx264", "-preset", plan.compression?.preset ?? "veryfast", "-crf", String(plan.compression?.crf ?? 23), "-pix_fmt", "yuv420p", "-movflags", "+faststart", ...metadataArgs(plan.metadata), plan.outputPath];
+      const caption = subtitlePath ? await captionFilter(this.ffmpegBinary, subtitlePath) : undefined;
+      const useComplexVideo = Boolean(plan.backgroundBlur || plan.overlayPath);
+      let videoMap: string[];
+      if (useComplexVideo) {
+        const parts: string[] = plan.backgroundBlur
+          ? [`[0:v]split=2[bg][fg]`, `[bg]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},boxblur=luma_radius=10:luma_power=1[blurred]`, `[fg]scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=black[foreground]`, `[blurred][foreground]overlay=0:0[base]`]
+          : [`[0:v]${filters.join(",")}[base]`];
+        let current = "base";
+        if (plan.overlayPath) { parts.push(`[base][1:v]format=rgba[overlay]`, `[base][overlay]overlay=0:0[with_overlay]`); current = "with_overlay"; }
+        if (caption) parts.push(`[${current}]${caption}[v]`); else parts.push(`[${current}]null[v]`);
+        videoMap = ["-filter_complex", parts.join(";"), "-map", "[v]"];
+      } else {
+        if (caption) filters.push(caption);
+        videoMap = ["-vf", filters.join(","), "-map", "0:v:0"];
+      }
+      const inputArgs = ["-y", "-hide_banner", "-loglevel", "error", ...(plan.trimStart ? ["-ss", String(plan.trimStart)] : []), "-i", effectiveInputPath, ...(plan.overlayPath ? ["-i", plan.overlayPath] : []), ...(plan.duration ? ["-t", String(plan.duration)] : [])];
+      const audioFilter = `${plan.cuts && plan.cuts.length > 0 ? `aselect='${cutExpression(plan.cuts)}',asetpts=N/SR/TB,` : ""}loudnorm=I=-16:TP=-1.5:LRA=11${plan.audioVolume === undefined ? "" : `,volume=${clampVolume(plan.audioVolume)}`}`;
+      const args = [...inputArgs, ...videoMap, ...(hasAudio ? ["-map", "0:a:0", "-c:a", "aac", "-b:a", "128k", "-af", audioFilter, "-shortest"] : ["-an"]), "-c:v", "libx264", "-preset", plan.compression?.preset ?? "veryfast", "-crf", String(plan.compression?.crf ?? 23), "-pix_fmt", "yuv420p", "-movflags", "+faststart", ...metadataArgs(plan.metadata), plan.outputPath];
       await execFileAsync(this.ffmpegBinary, args, { maxBuffer: 4 * 1024 * 1024 });
       const probe = await probeMedia(plan.outputPath, this.ffprobeBinary);
       const qc = await runQualityControl(plan.outputPath, qcConfig, this.ffprobeBinary);
@@ -107,6 +129,14 @@ export class FFmpegRenderer implements VideoRenderer {
 }
 
 function assertPath(filePath: string): void { if (!filePath || filePath.includes("\0") || !path.isAbsolute(filePath)) throw new ValidationError("media paths must be absolute and non-empty"); }
+function clampZoom(value: number | undefined): number { if (value === undefined) return 1; if (!Number.isFinite(value) || value < 1 || value > 2) throw new ValidationError("zoom must be between 1 and 2"); return Math.round(value * 100) / 100; }
+function cutExpression(cuts: Array<{ start: number; end: number }>): string { if (cuts.some((cut) => !Number.isFinite(cut.start) || !Number.isFinite(cut.end) || cut.start < 0 || cut.end <= cut.start)) throw new ValidationError("cuts must have finite non-negative ranges"); return cuts.map((cut) => `between(t,${cut.start},${cut.end})`).join("+"); }
+async function composeIntroOutro(plan: RenderPlan, outputPath: string, ffmpegBinary: string): Promise<void> {
+  const files = [plan.introPath, plan.inputPath, plan.outroPath].filter((file): file is string => Boolean(file));
+  const listPath = `${outputPath}.txt`;
+  await writeFile(listPath, files.map((file) => `file '${file.replaceAll("'", "'\\''")}'`).join("\n"));
+  await execFileAsync(ffmpegBinary, ["-y", "-hide_banner", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", listPath, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", outputPath], { maxBuffer: 4 * 1024 * 1024 });
+}
 function escapeFilterPath(filePath: string): string { return filePath.replaceAll("\\", "\\\\").replaceAll(":", "\\:").replaceAll("'", "\\'"); }
 async function captionFilter(ffmpegBinary: string, subtitlePath: string): Promise<string> {
   const available = await execFileAsync(ffmpegBinary, ["-hide_banner", "-filters"], { maxBuffer: 2 * 1024 * 1024 });

@@ -29,7 +29,21 @@ export const configSchema = z.object({
   RENDER_CONCURRENCY: z.coerce.number().int().positive().default(1),
   AI_CONCURRENCY: z.coerce.number().int().positive().default(3),
   PUBLISH_CONCURRENCY: z.coerce.number().int().positive().default(1),
-  ANALYTICS_CONCURRENCY: z.coerce.number().int().positive().default(2)
+  ANALYTICS_CONCURRENCY: z.coerce.number().int().positive().default(2),
+  YOUTUBE_CLIENT_ID: z.string().default(""),
+  YOUTUBE_CLIENT_SECRET: z.string().default(""),
+  YOUTUBE_REDIRECT_URI: z.string().url().or(z.literal("")).default(""),
+  YOUTUBE_ACCESS_TOKEN: z.string().default(""),
+  YOUTUBE_REFRESH_TOKEN: z.string().default(""),
+  TIKTOK_CLIENT_KEY: z.string().default(""),
+  TIKTOK_CLIENT_SECRET: z.string().default(""),
+  TIKTOK_ACCESS_TOKEN: z.string().default(""),
+  TIKTOK_OPEN_ID: z.string().default(""),
+  TIKTOK_MODE: z.enum(["DIRECT_POST", "UPLOAD_DRAFT"]).default("UPLOAD_DRAFT"),
+  TIKTOK_FALLBACK_TO_DRAFT: booleanFromEnv.default("true"),
+  INSTAGRAM_ACCESS_TOKEN: z.string().default(""),
+  INSTAGRAM_USER_ID: z.string().default(""),
+  INSTAGRAM_API_VERSION: z.string().default("v23.0")
 });
 
 export type AppConfig = z.infer<typeof configSchema>;

@@ -4,7 +4,7 @@
 
 `PublishingScheduler` accepts only `APPROVED` and non-`BLOCKED` videos. It calculates the next configured `publishingSlots` in the channel timezone when a schedule is not supplied and acquires a lock keyed by video ID. It publishes to all configured platforms independently and returns `SUCCESS` only when every publication succeeds; otherwise it returns `PARTIAL_FAILURE` with each platform result intact.
 
-The publisher worker and Compose service are ready for queue integration. Official YouTube, TikTok and Meta adapters remain separate phases and will never use browser-login workarounds.
+The publisher worker and Compose service are ready for queue integration. At runtime, each platform uses its official adapter when the required environment credentials are present; otherwise it uses the deterministic mock adapter for local development. Credentials are never logged or committed. Official adapters never use browser-login workarounds.
 
 ## YouTube
 

@@ -62,7 +62,14 @@ export async function registerDomainRoutes(server: FastifyInstance, store: Domai
   server.post(`${prefix}/costs`, async (request) => store.createCost(body(request.body, costSchema) as CreateCostInput));
   server.get(`${prefix}/budgets`, async (request) => store.listBudgets(parsePage(request.query)));
   server.post(`${prefix}/budgets`, async (request) => store.createBudget(body(request.body, budgetSchema) as CreateBudgetInput));
-  server.get(`${prefix}/costs/forecast`, async (request) => costControl.getForecast(body(request.query, budgetKeySchema) as BudgetKey));
+  server.get(`${prefix}/costs/forecast`, async (request) => {
+    const forecast = await costControl.getForecast(body(request.query, budgetKeySchema) as BudgetKey);
+    if (forecast.forecastMonthEndEur > forecast.budgetEur * 1.1) {
+      controls.stopPaidApis = true;
+      forecast.warnings = [...new Set([...forecast.warnings, "PAID_APIS_AUTO_STOPPED"])];
+    }
+    return forecast;
+  });
   server.post(`${prefix}/cost-control/reserve`, async (request) => { if (controls.stopPaidApis) { const input = body(request.body, reservationSchema) as ReservationRequest; if (input.amount > 0) throw new AppError("PAID_APIS_STOPPED", "paid API usage is disabled by the global kill switch"); } return costControl.reserve(body(request.body, reservationSchema) as ReservationRequest); });
   server.post<{ Params: Params }>(`${prefix}/cost-control/:id/release`, async (request) => { await costControl.release(idSchema.parse(request.params).id); return { status: "RELEASED" }; });
   server.post<{ Params: Params }>(`${prefix}/cost-control/:id/commit`, async (request) => { const input = body(request.body, commitSchema); const { actualAmount, ...cost } = input; return costControl.commit(idSchema.parse(request.params).id, actualAmount, cost); });

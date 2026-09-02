@@ -34,4 +34,32 @@ describe("FFmpegRenderer", () => {
       await rm(directory, { recursive: true, force: true });
     }
   }, 30_000);
+
+  it("renders the optional blurred background composition", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "shortfactory-video-blur-"));
+    const inputPath = path.join(directory, "source.mp4");
+    const outputPath = path.join(directory, "blurred.mp4");
+    try {
+      await execFileAsync("ffmpeg", ["-y", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=0x243b35:s=1280x720:d=1:r=30", "-c:v", "libx264", "-pix_fmt", "yuv420p", inputPath]);
+      const result = await new FFmpegRenderer().render({ inputPath, outputPath, backgroundBlur: true }, { width: 1080, height: 1920, minDuration: 1, maxDuration: 3, audioRequired: false, maxFileSizeBytes: 10 * 1024 * 1024 });
+      expect(result.qc.passed).toBe(true);
+      expect(result.probe.streams.find((stream) => stream.codecType === "video")).toMatchObject({ codecName: "h264", width: 1080, height: 1920 });
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it("supports bounded zoom and cut ranges", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "shortfactory-video-cuts-"));
+    const inputPath = path.join(directory, "source.mp4");
+    const outputPath = path.join(directory, "cut.mp4");
+    try {
+      await execFileAsync("ffmpeg", ["-y", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=0x243b35:s=1280x720:d=2:r=30", "-c:v", "libx264", "-pix_fmt", "yuv420p", inputPath]);
+      const result = await new FFmpegRenderer().render({ inputPath, outputPath, zoom: 1.1, cuts: [{ start: 0, end: 1 }] }, { width: 1080, height: 1920, minDuration: 0.5, maxDuration: 2, audioRequired: false, maxFileSizeBytes: 10 * 1024 * 1024 });
+      expect(result.qc.passed).toBe(true);
+      expect(result.probe.format.duration).toBeCloseTo(1, 0);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  }, 30_000);
 });
