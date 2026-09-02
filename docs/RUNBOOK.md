@@ -3,7 +3,7 @@
 ## Startup and readiness
 
 1. Copy `.env.example` to a runtime-only environment file and set PostgreSQL, Redis and provider credentials outside the repository.
-2. Start the stack with `docker compose up -d postgres redis database-migrate api dashboard worker-light discovery-worker transcription-worker tts-worker analysis-worker script-worker worker-render publisher-worker analytics-worker cleanup-worker orchestrator-worker nginx`.
+2. Start the stack with `docker compose up -d postgres redis database-migrate api dashboard worker-light discovery-worker transcription-worker tts-worker analysis-worker script-worker worker-render qc-worker review-worker publisher-worker analytics-worker cleanup-worker orchestrator-worker nginx`.
 3. Verify `GET /health` for liveness and `GET /ready` for PostgreSQL, Redis, storage, FFmpeg and provider readiness. A `503` from `/ready` means traffic should not be admitted; a `200` with `degraded` dependencies is expected until optional providers are configured and validated.
 4. Verify `GET /metrics` and inspect `docker compose logs --since=10m api` for request/correlation IDs.
 
