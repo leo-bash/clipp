@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z, ZodError } from "zod";
 import type { BudgetKey, CostControlService, ReservationRequest } from "@shortfactory/cost-control";
+import type { RightsGate } from "@shortfactory/rights";
 import { type DomainStore, type PageParams, type CreateBudgetInput, type CreateCandidateInput, type CreateChannelInput, type CreateCostInput, type CreatePublicationInput, type CreateSourceInput, type CreateVideoInput, type UpdateChannelInput, type UpdateSourceInput } from "@shortfactory/database";
 import { channelStatuses, channelTypes, platforms, publicationStatuses, rightsStatuses } from "@shortfactory/shared";
 
@@ -24,7 +25,7 @@ function parsePage(query: unknown): PageParams { return pageSchema.parse(query);
 function body<T>(value: unknown, schema: z.ZodType<T>): T { return schema.parse(value); }
 function notFound<T>(value: T | undefined): T { if (!value) throw new Error("NOT_FOUND"); return value; }
 
-export async function registerDomainRoutes(server: FastifyInstance, store: DomainStore, costControl: CostControlService, prefix = ""): Promise<void> {
+export async function registerDomainRoutes(server: FastifyInstance, store: DomainStore, costControl: CostControlService, rightsGate: RightsGate, prefix = ""): Promise<void> {
   server.get(`${prefix}/channels`, async (request) => store.listChannels(parsePage(request.query)));
   server.post(`${prefix}/channels`, async (request) => store.createChannel(body(request.body, channelSchema) as CreateChannelInput));
   server.get<{ Params: Params }>(`${prefix}/channels/:id`, async (request) => notFound(await store.getChannel(idSchema.parse(request.params).id)));
@@ -43,13 +44,13 @@ export async function registerDomainRoutes(server: FastifyInstance, store: Domai
   server.post<{ Params: Params }>(`${prefix}/candidates/:id/reject`, async (request) => notFound(await store.rejectCandidate(idSchema.parse(request.params).id, body(request.body, rejectSchema).reason)));
 
   server.get(`${prefix}/videos`, async (request) => store.listVideos(parsePage(request.query)));
-  server.post(`${prefix}/videos`, async (request) => store.createVideo(body(request.body, videoSchema) as CreateVideoInput));
+  server.post(`${prefix}/videos`, async (request) => { const input = body(request.body, videoSchema) as CreateVideoInput; rightsGate.assertCanRender({ rightsStatus: input.rightsStatus }); return store.createVideo(input); });
   server.get<{ Params: Params }>(`${prefix}/videos/:id`, async (request) => notFound(await store.getVideo(idSchema.parse(request.params).id)));
   server.post<{ Params: Params }>(`${prefix}/videos/:id/approve`, async (request) => notFound(await store.approveVideo(idSchema.parse(request.params).id)));
   server.post<{ Params: Params }>(`${prefix}/videos/:id/reject`, async (request) => notFound(await store.rejectVideo(idSchema.parse(request.params).id)));
 
   server.get(`${prefix}/publications`, async (request) => store.listPublications(parsePage(request.query)));
-  server.post(`${prefix}/publications`, async (request) => store.createPublication(body(request.body, publicationSchema) as CreatePublicationInput));
+  server.post(`${prefix}/publications`, async (request) => { const input = body(request.body, publicationSchema) as CreatePublicationInput; const video = notFound(await store.getVideo(input.videoId)); const channel = notFound(await store.getChannel(video.channelId)); rightsGate.assertCanAutoPublish({ rightsStatus: video.rightsStatus }, channel); return store.createPublication(input); });
   server.get(`${prefix}/costs`, async (request) => store.listCosts(parsePage(request.query)));
   server.post(`${prefix}/costs`, async (request) => store.createCost(body(request.body, costSchema) as CreateCostInput));
   server.get(`${prefix}/budgets`, async (request) => store.listBudgets(parsePage(request.query)));

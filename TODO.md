@@ -40,11 +40,23 @@ PHASE 2 acceptance criteria are satisfied in the available environment. Live Pos
 
 PHASE 3 acceptance criteria are satisfied by unit/API coverage. Real PostgreSQL execution remains pending Docker availability; Compose includes all migrations before API startup.
 
+## PHASE 4 result
+
+- [x] Add central rights gate and explicit rights error taxonomy.
+- [x] Enforce `BLOCKED` rejection before video/render creation.
+- [x] Prevent `UNKNOWN` and review-required assets from auto-publishing.
+- [x] Add Creative Commons approval/attribution policy support.
+- [x] Add rights warning to dashboard and documentation.
+- [x] Add gate and API safety tests.
+
+PHASE 4 acceptance criteria are satisfied by unit/API coverage. Rights decisions are explicit and do not assume that editing makes third-party content legal.
+
 ## Deferred to later phases
 
 - [x] Core domain schema and migrations (Phase 2).
 - [x] Cost control (Phase 3).
-- [ ] Rights gate (Phase 4).
+- [x] Rights gate (Phase 4).
+- [ ] Media engine and QC (Phase 5).
 - [ ] FFmpeg rendering and QC (Phase 5).
 - [ ] AI/transcription/planning providers (Phase 6).
 - [ ] Review, scheduling, publishing and analytics (Phases 7–12).

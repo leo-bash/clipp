@@ -14,3 +14,5 @@ h1 { max-width: 680px; font-size: clamp(2.8rem, 8vw, 6rem); line-height: .95; ma
 .muted, .channel-row small { color: var(--muted); }
 .channel-list { display: grid; gap: .75rem; }
 .channel-row { align-items: center; background: var(--panel); border: 1px solid #2c3038; border-radius: 10px; display: flex; justify-content: space-between; padding: 1rem 1.1rem; }
+.rights-note { border: 1px solid #7b6330; border-radius: 10px; color: #ead69b; display: grid; gap: .35rem; margin-top: 1.5rem; padding: 1rem 1.1rem; }
+.rights-note span { color: #bdac79; font-size: .9rem; }

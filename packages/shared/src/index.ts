@@ -52,6 +52,20 @@ export class BudgetExceededError extends AppError {
   }
 }
 
+export class RightsBlockedError extends AppError {
+  public constructor(message = "asset is blocked by the rights gate") {
+    super("RIGHTS_BLOCKED", message);
+    this.name = "RightsBlockedError";
+  }
+}
+
+export class RightsReviewRequiredError extends AppError {
+  public constructor(message = "manual rights review is required") {
+    super("RIGHTS_REVIEW_REQUIRED", message);
+    this.name = "RightsReviewRequiredError";
+  }
+}
+
 import { randomUUID } from "node:crypto";
 
 export function buildCorrelationId(): string {

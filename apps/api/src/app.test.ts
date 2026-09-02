@@ -57,4 +57,22 @@ describe("api foundation", () => {
     expect(second.json<{ error: string }>().error).toBe("BUDGET_EXCEEDED");
     expect(forecast.statusCode).toBe(200);
   });
+
+  it("blocks forbidden media before render and prevents unknown media from auto-publishing", async () => {
+    const app = await buildApp(loadConfig({}));
+    apps.push(app);
+    const channels = await app.server.inject({ method: "GET", url: "/api/v1/channels?pageSize=1" });
+    const channelId = channels.json<{ items: Array<{ id: string }> }>().items[0]?.id;
+    if (!channelId) throw new Error("seed channel missing");
+    const blocked = await app.server.inject({ method: "POST", url: "/api/v1/videos", payload: { channelId, rightsStatus: "BLOCKED" } });
+    const unknown = await app.server.inject({ method: "POST", url: "/api/v1/videos", payload: { channelId, rightsStatus: "UNKNOWN" } });
+    const videoId = unknown.json<{ id: string }>().id;
+    const publication = await app.server.inject({ method: "POST", url: "/api/v1/publications", payload: { videoId, platform: "YOUTUBE" } });
+
+    expect(blocked.statusCode).toBe(400);
+    expect(blocked.json<{ error: string }>().error).toBe("RIGHTS_BLOCKED");
+    expect(unknown.statusCode).toBe(200);
+    expect(publication.statusCode).toBe(400);
+    expect(publication.json<{ error: string }>().error).toBe("RIGHTS_REVIEW_REQUIRED");
+  });
 });

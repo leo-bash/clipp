@@ -7,7 +7,7 @@
 | 1 | Foundation: monorepo, TypeScript, config, logger, database/Redis queue boundaries, Docker, health checks | Completed |
 | 2 | Core domain: schema, seed data, channels/sources/candidates/videos/publications/costs/budgets CRUD | Completed |
 | 3 | Cost engine and forecast | Completed |
-| 4 | Rights safety gate | Pending |
+| 4 | Rights safety gate | Completed |
 | 5 | Storage, FFmpeg renderer and QC | Pending |
 | 6 | Transcription, analysis and content planning adapters | Pending |
 | 7 | Review dashboard | Pending |
@@ -36,6 +36,10 @@ Drizzle schema and versioned migration cover the 14 entities from the specificat
 
 `CostControlService` implements reservations, idempotency, commit/release, hard stop and forecast thresholds. The API exposes forecast and reservation endpoints, while PostgreSQL uses atomic budget updates and the `cost_reservations` migration. Tests verify a €1 budget stops the next job, duplicate reservation keys do not double-reserve, releases restore capacity, and forecast warnings are emitted.
 
+## Phase 4 verification
+
+`RightsGate` implements the required rights matrix. `BLOCKED` is rejected before video/render creation; `UNKNOWN`, `COMMENTARY_REVIEW` and unapproved Creative Commons assets require manual review; auto-publish is disabled whenever policy requires review. API and gate tests cover the safety boundary.
+
 ## Next milestone
 
-Phase 4 will add the mandatory rights safety gate without changing the Phase 3 process boundaries.
+Phase 5 will add storage, FFprobe/FFmpeg rendering and automatic QC without changing the Phase 4 process boundaries.

@@ -4,6 +4,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import type { AppConfig } from "@shortfactory/config";
 import { createDatabase, type DatabaseClient } from "@shortfactory/database";
 import { createPostgresCostControlLedger, CostControlService, InMemoryCostControlLedger, type CostControlService as CostControlServiceType } from "@shortfactory/cost-control";
+import { RightsGate } from "@shortfactory/rights";
 import { createLogger } from "@shortfactory/logger";
 import { createQueue, type QueueClient } from "@shortfactory/queue";
 import type { DependencyHealth, HealthStatus, ReadinessResponse } from "@shortfactory/shared";
@@ -14,6 +15,7 @@ export interface AppDependencies {
   database: DatabaseClient;
   queue: QueueClient;
   costControl: CostControlServiceType;
+  rightsGate: RightsGate;
 }
 
 export interface ShortFactoryApp {
@@ -37,7 +39,8 @@ export async function buildApp(config: AppConfig, supplied?: Partial<AppDependen
     costControl: supplied?.costControl ?? new CostControlService(
       dependenciesLedger(database),
       { monthlyBudgetEur: config.MONTHLY_BUDGET_EUR }
-    )
+    ),
+    rightsGate: supplied?.rightsGate ?? new RightsGate()
   };
   await dependencies.database.domain.ensureSeedData();
   // Fastify's logger generic is intentionally narrower than Pino's runtime logger.
@@ -54,8 +57,8 @@ export async function buildApp(config: AppConfig, supplied?: Partial<AppDependen
     return reply.code(500).send({ error: "INTERNAL_ERROR" });
   });
 
-  await registerDomainRoutes(server, dependencies.database.domain, dependencies.costControl);
-  await registerDomainRoutes(server, dependencies.database.domain, dependencies.costControl, "/api/v1");
+  await registerDomainRoutes(server, dependencies.database.domain, dependencies.costControl, dependencies.rightsGate);
+  await registerDomainRoutes(server, dependencies.database.domain, dependencies.costControl, dependencies.rightsGate, "/api/v1");
 
   server.get("/health", async () => ({
     status: "ok",
