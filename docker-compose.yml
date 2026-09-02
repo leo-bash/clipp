@@ -1,5 +1,8 @@
 name: shortfactory
 
+x-render-cache: &render-cache
+  - render-cache:/app/.data
+
 services:
   postgres:
     image: postgres:16.4-alpine
@@ -45,6 +48,7 @@ services:
       CORS_ORIGIN: http://localhost:3000
     ports:
       - "4000:4000"
+    volumes: *render-cache
     depends_on:
       redis:
         condition: service_healthy
@@ -88,6 +92,7 @@ services:
       context: .
       dockerfile: infrastructure/docker/Dockerfile
     command: ["pnpm", "--filter", "@shortfactory/worker-light", "dev"]
+    volumes: *render-cache
     environment:
       NODE_ENV: development
       DATABASE_MODE: postgres
@@ -105,6 +110,7 @@ services:
       context: .
       dockerfile: infrastructure/docker/Dockerfile
     command: ["pnpm", "--filter", "@shortfactory/discovery-worker", "dev"]
+    volumes: *render-cache
     environment:
       NODE_ENV: development
       DATABASE_MODE: postgres
@@ -122,6 +128,7 @@ services:
       context: .
       dockerfile: infrastructure/docker/Dockerfile
     command: ["pnpm", "--filter", "@shortfactory/transcription-worker", "dev"]
+    volumes: *render-cache
     environment:
       NODE_ENV: development
       DATABASE_MODE: postgres
@@ -139,6 +146,7 @@ services:
       context: .
       dockerfile: infrastructure/docker/Dockerfile
     command: ["pnpm", "--filter", "@shortfactory/tts-worker", "dev"]
+    volumes: *render-cache
     environment:
       NODE_ENV: development
       DATABASE_MODE: postgres
@@ -163,6 +171,7 @@ services:
       context: .
       dockerfile: infrastructure/docker/Dockerfile
     command: ["pnpm", "--filter", "@shortfactory/analysis-worker", "dev"]
+    volumes: *render-cache
     environment:
       NODE_ENV: development
       DATABASE_MODE: postgres
@@ -180,6 +189,7 @@ services:
       context: .
       dockerfile: infrastructure/docker/Dockerfile
     command: ["pnpm", "--filter", "@shortfactory/script-worker", "dev"]
+    volumes: *render-cache
     environment:
       NODE_ENV: development
       DATABASE_MODE: postgres
@@ -197,6 +207,7 @@ services:
       context: .
       dockerfile: infrastructure/docker/Dockerfile
     command: ["pnpm", "--filter", "@shortfactory/worker-render", "dev"]
+    volumes: *render-cache
     environment:
       NODE_ENV: development
       DATABASE_MODE: postgres
@@ -214,6 +225,7 @@ services:
       context: .
       dockerfile: infrastructure/docker/Dockerfile
     command: ["pnpm", "--filter", "@shortfactory/qc-worker", "dev"]
+    volumes: *render-cache
     environment:
       NODE_ENV: development
       DATABASE_MODE: postgres
@@ -231,6 +243,7 @@ services:
       context: .
       dockerfile: infrastructure/docker/Dockerfile
     command: ["pnpm", "--filter", "@shortfactory/review-worker", "dev"]
+    volumes: *render-cache
     environment:
       NODE_ENV: development
       DATABASE_MODE: postgres
@@ -248,6 +261,7 @@ services:
       context: .
       dockerfile: infrastructure/docker/Dockerfile
     command: ["pnpm", "--filter", "@shortfactory/publisher-worker", "dev"]
+    volumes: *render-cache
     environment:
       NODE_ENV: development
       DATABASE_MODE: postgres
@@ -279,6 +293,7 @@ services:
       context: .
       dockerfile: infrastructure/docker/Dockerfile
     command: ["pnpm", "--filter", "@shortfactory/analytics-worker", "dev"]
+    volumes: *render-cache
     environment:
       NODE_ENV: development
       DATABASE_MODE: postgres
@@ -296,6 +311,7 @@ services:
       context: .
       dockerfile: infrastructure/docker/Dockerfile
     command: ["pnpm", "--filter", "@shortfactory/cleanup-worker", "dev"]
+    volumes: *render-cache
     environment:
       NODE_ENV: development
       DATABASE_MODE: postgres
@@ -313,6 +329,7 @@ services:
       context: .
       dockerfile: infrastructure/docker/Dockerfile
     command: ["pnpm", "--filter", "@shortfactory/orchestrator-worker", "dev"]
+    volumes: *render-cache
     environment:
       NODE_ENV: development
       DATABASE_MODE: postgres
@@ -340,3 +357,4 @@ services:
 volumes:
   postgres-data:
   redis-data:
+  render-cache:

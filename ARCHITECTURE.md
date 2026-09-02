@@ -1,6 +1,6 @@
 # ShortFactory — Architecture
 
-ShortFactory is a TypeScript monorepo designed for a single VPS first and horizontal worker scaling later. The implementation keeps API, dashboard and queue workers separate while sharing typed domain contracts, persistence, storage, media, cost and rights boundaries.
+ShortFactory is a TypeScript monorepo designed for a single VPS first and horizontal worker scaling later. The implementation keeps API, dashboard and queue workers separate while sharing typed domain contracts, persistence, storage, media, cost and rights boundaries. Compose persists PostgreSQL, Redis and a shared `/app/.data` render-cache volume so media and TTS artifacts survive worker/API restarts.
 
 ## Runtime topology
 

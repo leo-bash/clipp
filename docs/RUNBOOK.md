@@ -7,7 +7,7 @@
 3. Verify `GET /health` for liveness and `GET /ready` for PostgreSQL, Redis, storage, FFmpeg and provider readiness. A `503` from `/ready` means traffic should not be admitted; a `200` with `degraded` dependencies is expected until optional providers are configured and validated.
 4. Verify `GET /metrics` and inspect `docker compose logs --since=10m api` for request/correlation IDs.
 
-The local memory/mock adapters are for development and tests only. The Compose runtime has been verified with Colima/Docker on macOS ARM: PostgreSQL and Redis become healthy, `database-migrate` exits with code `0`, and API/dashboard/nginx are reachable. If the `docker compose` plugin is unavailable, the equivalent Homebrew command is `docker-compose`; both use the same Compose file.
+The local memory/mock adapters are for development and tests only. The Compose runtime has been verified with Colima/Docker on macOS ARM: PostgreSQL and Redis become healthy, `database-migrate` exits with code `0`, the shared `render-cache` volume preserves a generated MP4 across an API restart, and API/dashboard/nginx are reachable. If the `docker compose` plugin is unavailable, the equivalent Homebrew command is `docker-compose`; both use the same Compose file.
 
 ## Backups and restore
 
