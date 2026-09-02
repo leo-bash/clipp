@@ -110,6 +110,31 @@ importers:
         specifier: ^3.2.4
         version: 3.2.7(@types/node@22.20.1)(supports-color@7.2.0)(tsx@4.23.13)
 
+  packages/ai:
+    dependencies:
+      '@shortfactory/transcription':
+        specifier: workspace:*
+        version: link:../transcription
+      zod:
+        specifier: ^3.25.76
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^22.15.0
+        version: 22.20.1
+      eslint:
+        specifier: ^9.35.0
+        version: 9.39.5(supports-color@7.2.0)
+      tsup:
+        specifier: ^8.5.0
+        version: 8.5.1(postcss@8.5.26)(supports-color@7.2.0)(tsx@4.23.13)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@22.20.1)(supports-color@7.2.0)(tsx@4.23.13)
+
   packages/config:
     dependencies:
       zod:
@@ -302,7 +327,95 @@ importers:
         specifier: ^3.2.4
         version: 3.2.7(@types/node@22.20.1)(supports-color@7.2.0)(tsx@4.23.13)
 
+  packages/storage:
+    dependencies:
+      '@shortfactory/shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      '@types/node':
+        specifier: ^22.15.0
+        version: 22.20.1
+      eslint:
+        specifier: ^9.35.0
+        version: 9.39.5(supports-color@7.2.0)
+      tsup:
+        specifier: ^8.5.0
+        version: 8.5.1(postcss@8.5.26)(supports-color@7.2.0)(tsx@4.23.13)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@22.20.1)(supports-color@7.2.0)(tsx@4.23.13)
+
   packages/testing:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.15.0
+        version: 22.20.1
+      eslint:
+        specifier: ^9.35.0
+        version: 9.39.5(supports-color@7.2.0)
+      tsup:
+        specifier: ^8.5.0
+        version: 8.5.1(postcss@8.5.26)(supports-color@7.2.0)(tsx@4.23.13)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@22.20.1)(supports-color@7.2.0)(tsx@4.23.13)
+
+  packages/transcription:
+    dependencies:
+      zod:
+        specifier: ^3.25.76
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^22.15.0
+        version: 22.20.1
+      eslint:
+        specifier: ^9.35.0
+        version: 9.39.5(supports-color@7.2.0)
+      tsup:
+        specifier: ^8.5.0
+        version: 8.5.1(postcss@8.5.26)(supports-color@7.2.0)(tsx@4.23.13)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@22.20.1)(supports-color@7.2.0)(tsx@4.23.13)
+
+  packages/tts:
+    dependencies:
+      '@shortfactory/shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      '@types/node':
+        specifier: ^22.15.0
+        version: 22.20.1
+      eslint:
+        specifier: ^9.35.0
+        version: 9.39.5(supports-color@7.2.0)
+      tsup:
+        specifier: ^8.5.0
+        version: 8.5.1(postcss@8.5.26)(supports-color@7.2.0)(tsx@4.23.13)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@22.20.1)(supports-color@7.2.0)(tsx@4.23.13)
+
+  packages/video:
+    dependencies:
+      '@shortfactory/shared':
+        specifier: workspace:*
+        version: link:../shared
     devDependencies:
       '@types/node':
         specifier: ^22.15.0
@@ -322,6 +435,9 @@ importers:
 
   workers/worker-light:
     dependencies:
+      '@shortfactory/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
       '@shortfactory/config':
         specifier: workspace:*
         version: link:../../packages/config
@@ -331,6 +447,9 @@ importers:
       '@shortfactory/queue':
         specifier: workspace:*
         version: link:../../packages/queue
+      '@shortfactory/transcription':
+        specifier: workspace:*
+        version: link:../../packages/transcription
     devDependencies:
       '@types/node':
         specifier: ^22.15.0
@@ -362,6 +481,9 @@ importers:
       '@shortfactory/queue':
         specifier: workspace:*
         version: link:../../packages/queue
+      '@shortfactory/video':
+        specifier: workspace:*
+        version: link:../../packages/video
     devDependencies:
       '@types/node':
         specifier: ^22.15.0

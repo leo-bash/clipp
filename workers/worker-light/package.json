@@ -11,9 +11,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@shortfactory/ai": "workspace:*",
     "@shortfactory/config": "workspace:*",
     "@shortfactory/logger": "workspace:*",
-    "@shortfactory/queue": "workspace:*"
+    "@shortfactory/queue": "workspace:*",
+    "@shortfactory/transcription": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",

@@ -29,6 +29,9 @@ The API never performs heavy FFmpeg work. Render work has a separate worker boun
 - `packages/cost-control`: budget ledger, idempotent reservations, hard stop and forecast service.
 - `packages/storage`: storage-provider contract and safe local filesystem adapter with retention cleanup hooks.
 - `packages/video`: FFprobe/FFmpeg renderer, ASS caption burn-in and deterministic media quality control.
+- `packages/transcription`: timestamped transcription contract, deterministic local adapter and cache boundary.
+- `packages/ai`: Zod-validated analysis/content-plan contracts, bounded retries, deterministic adapters and AI cost meter.
+- `packages/tts`: replaceable TTS contract with an explicit disabled adapter.
 - `packages/shared`: cross-package types and error taxonomy.
 - `infrastructure`: Docker Compose and future deployment scripts.
 
@@ -37,6 +40,8 @@ The API never performs heavy FFmpeg work. Render work has a separate worker boun
 Provider integrations use interfaces/adapters. Paid providers must be gated by cost control before execution. Rights and publication safety gates belong in domain/application packages in later phases. Secrets are runtime configuration only and are never logged or committed.
 
 The render worker owns media processing and receives absolute input/output paths from a storage adapter. It crops landscape or portrait sources into the configured vertical canvas, optionally burns captions, normalizes audio, and runs FFprobe-based QC before a render is accepted. A render container includes FFmpeg and FFprobe; the local adapter remains usable for tests and development.
+
+The light worker owns the candidate AI boundary. `AiPipeline` passes candidate metadata, channel configuration, performance context and a timestamped transcript to analysis; no video binary is sent to the LLM boundary. Transcription is cached by media hash, language and model. External analysis and planning responses must pass Zod schemas and have bounded retries before they can reach downstream rendering.
 
 ## Local modes
 

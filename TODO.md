@@ -1,6 +1,6 @@
 # ShortFactory — TODO
 
-## Current phase: PHASE 6 — AI PIPELINE
+## Current phase: PHASE 7 — REVIEW DASHBOARD
 
 - [x] Analyze repository and environment.
 - [x] Read the complete project specification.
@@ -60,6 +60,19 @@ PHASE 3 acceptance criteria are satisfied by unit/API coverage. Real PostgreSQL 
 
 PHASE 5 acceptance criteria are satisfied by the automated fixture test and full local check suite. Docker runtime verification remains pending because Docker is unavailable on this host.
 
+## PHASE 6 result
+
+- [x] Add timestamped transcription provider contract and deterministic adapter.
+- [x] Add transcription cache keyed by media hash, language and model.
+- [x] Add Zod-validated analysis and content-planning outputs.
+- [x] Add bounded retries for invalid analysis/planning provider output.
+- [x] Add AI cost measurement interface and in-memory meter.
+- [x] Add explicit disabled TTS provider contract.
+- [x] Wire the AI pipeline into the light worker boundary.
+- [x] Test candidate → transcript → analysis → plan and retry behavior.
+
+PHASE 6 acceptance criteria are satisfied by the pipeline tests and full local check suite. Paid provider credentials remain runtime-only and no external provider call is made by the deterministic adapters.
+
 PHASE 4 acceptance criteria are satisfied by unit/API coverage. Rights decisions are explicit and do not assume that editing makes third-party content legal.
 
 ## Deferred to later phases
@@ -69,5 +82,5 @@ PHASE 4 acceptance criteria are satisfied by unit/API coverage. Rights decisions
 - [x] Rights gate (Phase 4).
 - [x] Media engine and QC (Phase 5).
 - [x] FFmpeg rendering and QC (Phase 5).
-- [ ] AI/transcription/planning providers (Phase 6).
+- [x] AI/transcription/planning providers (Phase 6).
 - [ ] Review, scheduling, publishing and analytics (Phases 7–12).
