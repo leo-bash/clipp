@@ -1,6 +1,6 @@
 # ShortFactory — TODO
 
-## Current phase: PHASE 14 — PRODUCTION HARDENING
+## Current phase: PHASE 15 — SPECIFICATION AUDIT CLOSURE
 
 - [x] Analyze repository and environment.
 - [x] Read the complete project specification.
@@ -185,3 +185,18 @@ PHASE 4 acceptance criteria are satisfied by unit/API coverage. Rights decisions
 - [x] Add Prometheus-compatible metrics, CI and production readiness runbook.
 
 PHASE 14 acceptance criteria are satisfied by the API/platform/queue tests and the full local check suite. Backup/restore and Redis/PostgreSQL production paths are configured but cannot be live-executed here because Docker is unavailable.
+
+## PHASE 15 — specification audit closure
+
+- [x] Add discovery provider contract and URL/external-id/content-hash duplicate detection.
+- [x] Add R2/S3-compatible storage and configuration-based local/remote selection.
+- [x] Add TTS estimated-cost, cache key and budget-gate contracts.
+- [x] Add subtitle presets, safe-zone wrapping, overlays, audio volume, compression, metadata and thumbnail support.
+- [x] Add global kill switches, model routing, analytics collection windows and expanded readiness checks.
+- [x] Add queue consumer boundaries with retry and retained terminal failures.
+- [x] Add dashboard navigation and operator forms for channels, sources, candidates, review, publishing, analytics, costs, settings and health.
+- [x] Add versioned migrations for operational channel/source configuration, budget timestamps and duplicate URL uniqueness.
+- [ ] Complete real worker business processors and the dashboard one-click test pipeline end to end.
+- [ ] Run Docker Compose, PostgreSQL migration/seed and Redis integration on a host with Docker.
+
+PHASE 15 remains open until the unchecked MVP workflow and runtime integration checks are complete.

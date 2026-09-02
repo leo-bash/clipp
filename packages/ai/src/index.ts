@@ -42,6 +42,19 @@ export interface ContentPlanner { plan(input: ContentPlanInput): Promise<Content
 export interface AiCostMeasurement { idempotencyKey: string; provider: string; service: "transcription" | "llm" | "tts"; operation: string; estimatedCostEur: number; actualCostEur: number; quantity: number; unit: string; candidateId?: string; }
 export interface AiCostMeter { measure(cost: AiCostMeasurement): Promise<void>; }
 
+export type AiTask = "transcription" | "analysis" | "planning" | "tts";
+export interface ModelRoute { task: AiTask; model: string; reason: "budget" | "quality" | "deterministic"; }
+
+export class ModelRouter {
+  public constructor(private readonly options: { preferredModel?: string; lowCostModel?: string; paidApisDisabled?: boolean } = {}) {}
+
+  public route(task: AiTask, remainingBudgetEur: number): ModelRoute {
+    if (this.options.paidApisDisabled || remainingBudgetEur <= 0) return { task, model: "deterministic", reason: "deterministic" };
+    if (remainingBudgetEur < 1) return { task, model: this.options.lowCostModel ?? "low-cost", reason: "budget" };
+    return { task, model: this.options.preferredModel ?? "quality", reason: "quality" };
+  }
+}
+
 export class InMemoryAiCostMeter implements AiCostMeter {
   public readonly measurements: AiCostMeasurement[] = [];
   public async measure(cost: AiCostMeasurement): Promise<void> { this.measurements.push(cost); }

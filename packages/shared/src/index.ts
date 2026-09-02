@@ -1,5 +1,13 @@
 export type ServiceMode = "memory" | "postgres" | "mock" | "redis";
 
+export interface OperationalControls {
+  stopAllPublishing: boolean;
+  stopRendering: boolean;
+  stopPaidApis: boolean;
+}
+
+export const defaultOperationalControls: OperationalControls = { stopAllPublishing: false, stopRendering: false, stopPaidApis: false };
+
 export * from "./domain.js";
 
 export type HealthStatus = "ok" | "degraded" | "down";

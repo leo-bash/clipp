@@ -7,6 +7,8 @@ export type ChannelStatus = (typeof channelStatuses)[number];
 export const platforms = ["YOUTUBE", "TIKTOK", "INSTAGRAM"] as const;
 export type Platform = (typeof platforms)[number];
 
+export const defaultPublishingSlots = ["08:00", "10:30", "13:00", "15:30", "18:00", "20:30"] as const;
+
 export const rightsStatuses = ["OWNED", "LICENSED", "CREATIVE_COMMONS", "PUBLIC_DOMAIN", "COMMENTARY_REVIEW", "UNKNOWN", "BLOCKED"] as const;
 export type RightsStatus = (typeof rightsStatuses)[number];
 
@@ -36,6 +38,11 @@ export interface Channel {
   autoPublish: boolean;
   manualReviewRequired: boolean;
   monthlyBudget: number;
+  publishingSlots?: string[];
+  keywords?: string[];
+  priority?: number;
+  settings?: Record<string, unknown>;
+  killSwitches?: Record<string, boolean>;
   createdAt: string;
   updatedAt: string;
 }
@@ -49,6 +56,10 @@ export interface Source {
   rightsStatus: RightsStatus;
   creator?: string;
   notes?: string;
+  licenseUrl?: string;
+  attributionRequired?: boolean;
+  attributionText?: string;
+  keywords?: string[];
   enabled: boolean;
   createdAt: string;
   updatedAt: string;
@@ -130,4 +141,5 @@ export interface Budget {
   warningThreshold: number;
   hardStop: boolean;
   createdAt: string;
+  updatedAt?: string;
 }

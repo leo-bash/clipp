@@ -1,0 +1,10 @@
+ALTER TABLE "channels" ADD COLUMN IF NOT EXISTS "publishing_slots" jsonb NOT NULL DEFAULT '["08:00","10:30","13:00","15:30","18:00","20:30"]'::jsonb;
+ALTER TABLE "channels" ADD COLUMN IF NOT EXISTS "keywords" jsonb NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE "channels" ADD COLUMN IF NOT EXISTS "priority" integer NOT NULL DEFAULT 0;
+ALTER TABLE "channels" ADD COLUMN IF NOT EXISTS "settings" jsonb NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE "channels" ADD COLUMN IF NOT EXISTS "kill_switches" jsonb NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE "sources" ADD COLUMN IF NOT EXISTS "license_url" text;
+ALTER TABLE "sources" ADD COLUMN IF NOT EXISTS "attribution_required" boolean NOT NULL DEFAULT false;
+ALTER TABLE "sources" ADD COLUMN IF NOT EXISTS "attribution_text" text;
+ALTER TABLE "sources" ADD COLUMN IF NOT EXISTS "keywords" jsonb NOT NULL DEFAULT '[]'::jsonb;
+UPDATE "channels" SET "publishing_slots" = '["08:00","10:30","13:00","15:30","18:00","20:30"]'::jsonb WHERE "publishing_slots" = '[]'::jsonb;

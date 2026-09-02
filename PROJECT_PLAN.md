@@ -18,6 +18,7 @@
 | 12 | Analytics snapshots and performance scoring | Completed |
 | 13 | Daily orchestrator, buffers and idempotent queue scheduling | Completed |
 | 14 | Production hardening: security, backups, monitoring, rate limiting, DLQ and runbook | Completed |
+| 15 | Specification audit closure: remote storage, worker consumers, operational UI, media/TTS completeness and runtime verification | In progress |
 
 ## Phase 1 exit criteria
 
@@ -87,4 +88,4 @@ Phase 13 verification
 
 API hardening adds Helmet, CORS, request body limits, configurable Fastify request rate limiting, request/correlation headers, redacted structured audit logs and a Prometheus-compatible metrics endpoint. Provider publishing uses a centralized per-provider/account limiter with an in-memory test adapter and Redis/Lua coordination adapter, including `retryAfterMs`. BullMQ and the mock queue expose dead-letter retention. PostgreSQL backup and explicitly confirmed restore scripts implement 7 daily/4 weekly retention. CI runs the full check suite, and `docs/RUNBOOK.md` documents startup, readiness, backups, DLQ handling and incidents.
 
-All implementation phases are complete. The only environment-level verification still unavailable is live Docker Compose execution because Docker is not installed on this host.
+The Phase 14 foundation is complete and locally verified. The specification audit identified remaining MVP closure work tracked in Phase 15: the runtime worker consumers and expanded operator workflow are now being integrated, while live Docker Compose/PostgreSQL/Redis execution remains unavailable on this host because Docker is not installed.

@@ -1,6 +1,9 @@
 import { copyFile, mkdir, readFile, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { ValidationError } from "@shortfactory/shared";
+import { S3StorageProvider } from "./s3.js";
+
+export * from "./s3.js";
 
 export interface StorageObject {
   key: string;
@@ -16,11 +19,29 @@ export interface StorageProvider {
   head(key: string): Promise<StorageObject | undefined>;
 }
 
+export interface ConfiguredStorageOptions {
+  root: string;
+  endpoint?: string;
+  bucket?: string;
+  accessKeyId?: string;
+  secretAccessKey?: string;
+  region?: string;
+}
+
 export interface RetentionPolicy {
   key: string;
   expiresAt: Date;
   legalHold?: boolean;
   preserve?: boolean;
+}
+
+export const retentionDays = { raw: 7, tempRender: 3, failedRender: 7, published: 30, thumbnail: 90 } as const;
+export type RetentionClass = keyof typeof retentionDays;
+
+export function retentionExpiry(retentionClass: RetentionClass, createdAt: Date): Date {
+  const expiry = new Date(createdAt);
+  expiry.setUTCDate(expiry.getUTCDate() + retentionDays[retentionClass]);
+  return expiry;
 }
 
 export class LocalStorageProvider implements StorageProvider {
@@ -67,6 +88,12 @@ export class LocalStorageProvider implements StorageProvider {
   }
 
   private async describe(key: string, filePath: string): Promise<StorageObject> { const details = await stat(filePath); return { key, path: filePath, size: details.size, metadata: this.metadata.get(key) ?? {} }; }
+}
+
+export function createConfiguredStorageProvider(options: ConfiguredStorageOptions): StorageProvider {
+  const hasRemoteConfig = Boolean(options.endpoint && options.bucket && options.accessKeyId && options.secretAccessKey);
+  if (hasRemoteConfig) return new S3StorageProvider({ bucket: options.bucket as string, endpoint: options.endpoint, region: options.region, accessKeyId: options.accessKeyId as string, secretAccessKey: options.secretAccessKey as string, forcePathStyle: true });
+  return new LocalStorageProvider(options.root);
 }
 
 function isMissing(error: unknown): boolean { return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT"; }

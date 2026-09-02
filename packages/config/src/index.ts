@@ -16,7 +16,20 @@ export const configSchema = z.object({
   QUEUE_MODE: z.enum(["mock", "redis"]).default("mock"),
   REDIS_URL: z.string().url().default("redis://localhost:6379"),
   MONTHLY_BUDGET_EUR: z.coerce.number().nonnegative().default(50),
-  APP_ENCRYPTION_KEY: z.string().min(16).default("development-only-replace-me")
+  APP_ENCRYPTION_KEY: z.string().min(16).default("development-only-replace-me"),
+  R2_ENDPOINT: z.string().url().or(z.literal("")).default(""),
+  R2_BUCKET: z.string().default(""),
+  R2_ACCESS_KEY: z.string().default(""),
+  R2_SECRET_KEY: z.string().default(""),
+  STORAGE_ROOT: z.string().default("./.data/storage"),
+  R2_REGION: z.string().default("auto"),
+  STOP_ALL_PUBLISHING: booleanFromEnv.default("false"),
+  STOP_RENDERING: booleanFromEnv.default("false"),
+  STOP_PAID_APIS: booleanFromEnv.default("false"),
+  RENDER_CONCURRENCY: z.coerce.number().int().positive().default(1),
+  AI_CONCURRENCY: z.coerce.number().int().positive().default(3),
+  PUBLISH_CONCURRENCY: z.coerce.number().int().positive().default(1),
+  ANALYTICS_CONCURRENCY: z.coerce.number().int().positive().default(2)
 });
 
 export type AppConfig = z.infer<typeof configSchema>;

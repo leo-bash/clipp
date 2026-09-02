@@ -8,6 +8,29 @@ jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16.4-alpine
+        env:
+          POSTGRES_DB: shortfactory
+          POSTGRES_USER: shortfactory
+          POSTGRES_PASSWORD: shortfactory
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U shortfactory -d shortfactory"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -18,4 +41,6 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: DATABASE_MODE=postgres DATABASE_URL=postgresql://shortfactory:shortfactory@localhost:5432/shortfactory pnpm --filter @shortfactory/database db:migrate
+      - run: DATABASE_MODE=postgres DATABASE_URL=postgresql://shortfactory:shortfactory@localhost:5432/shortfactory pnpm --filter @shortfactory/database db:seed
       - run: pnpm check

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import { count, desc, eq, sql } from "drizzle-orm";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
-import type { Budget, Candidate, CandidateStatus, Channel, ChannelStatus, ChannelType, Cost, Platform, Publication, PublicationStatus, RightsStatus, Source, Video, VideoStatus } from "@shortfactory/shared";
+import { defaultPublishingSlots, type Budget, type Candidate, type CandidateStatus, type Channel, type ChannelStatus, type ChannelType, type Cost, type Platform, type Publication, type PublicationStatus, type RightsStatus, type Source, type Video, type VideoStatus } from "@shortfactory/shared";
 import { AppError } from "@shortfactory/shared";
 import { channels, candidates, costs, publications, schema, sources, videos } from "./schema.js";
 
@@ -22,6 +22,11 @@ export interface CreateChannelInput {
   autoPublish: boolean;
   manualReviewRequired: boolean;
   monthlyBudget: number;
+  publishingSlots?: string[];
+  keywords?: string[];
+  priority?: number;
+  settings?: Record<string, unknown>;
+  killSwitches?: Record<string, boolean>;
 }
 
 export type UpdateChannelInput = Partial<Omit<CreateChannelInput, "slug">>;
@@ -34,6 +39,10 @@ export interface CreateSourceInput {
   rightsStatus: RightsStatus;
   creator?: string;
   notes?: string;
+  licenseUrl?: string;
+  attributionRequired?: boolean;
+  attributionText?: string;
+  keywords?: string[];
   enabled: boolean;
 }
 
@@ -99,6 +108,8 @@ export interface DomainStore {
   listCandidates(params: PageParams): Promise<Page<Candidate>>;
   createCandidate(input: CreateCandidateInput): Promise<Candidate>;
   selectCandidate(id: string): Promise<Candidate | undefined>;
+  analyzeCandidate(id: string): Promise<Candidate | undefined>;
+  planCandidate(id: string): Promise<Candidate | undefined>;
   rejectCandidate(id: string, reason: string): Promise<Candidate | undefined>;
   listVideos(params: PageParams): Promise<Page<Video>>;
   getVideo(id: string): Promise<Video | undefined>;
@@ -109,6 +120,7 @@ export interface DomainStore {
   rerenderVideo(id: string): Promise<Video | undefined>;
   listPublications(params: PageParams): Promise<Page<Publication>>;
   createPublication(input: CreatePublicationInput): Promise<Publication>;
+  retryPublication(id: string): Promise<Publication | undefined>;
   listCosts(params: PageParams): Promise<Page<Cost>>;
   createCost(input: CreateCostInput): Promise<Cost>;
   listBudgets(params: PageParams): Promise<Page<Budget>>;
@@ -144,9 +156,9 @@ export class MemoryDomainStore implements DomainStore {
     if (this.channelItems.length > 0) return;
     const timestamp = now();
     const channelSeed: CreateChannelInput[] = [
-      { name: "Tech Tutorials", slug: "tech-tutorials", type: "TUTORIAL", language: "en", timezone: "Europe/Rome", videosPerDay: 6, minDuration: 18, maxDuration: 45, autoPublish: false, manualReviewRequired: true, monthlyBudget: 20 },
-      { name: "Streamer Commentary", slug: "streamer-commentary", type: "STREAMER_COMMENTARY", language: "en", timezone: "Europe/Rome", videosPerDay: 6, minDuration: 18, maxDuration: 45, autoPublish: false, manualReviewRequired: true, monthlyBudget: 15 },
-      { name: "Creator Stories", slug: "creator-stories", type: "CREATOR_STORY", language: "en", timezone: "Europe/Rome", videosPerDay: 6, minDuration: 18, maxDuration: 45, autoPublish: false, manualReviewRequired: true, monthlyBudget: 15 }
+      { name: "Tech Tutorials", slug: "tech-tutorials", type: "TUTORIAL", language: "en", timezone: "Europe/Rome", videosPerDay: 6, minDuration: 18, maxDuration: 45, autoPublish: false, manualReviewRequired: true, monthlyBudget: 20, publishingSlots: [...defaultPublishingSlots] },
+      { name: "Streamer Commentary", slug: "streamer-commentary", type: "STREAMER_COMMENTARY", language: "en", timezone: "Europe/Rome", videosPerDay: 6, minDuration: 18, maxDuration: 45, autoPublish: false, manualReviewRequired: true, monthlyBudget: 15, publishingSlots: [...defaultPublishingSlots] },
+      { name: "Creator Stories", slug: "creator-stories", type: "CREATOR_STORY", language: "en", timezone: "Europe/Rome", videosPerDay: 6, minDuration: 18, maxDuration: 45, autoPublish: false, manualReviewRequired: true, monthlyBudget: 15, publishingSlots: [...defaultPublishingSlots] }
     ];
     for (const input of channelSeed) {
       this.channelItems.push({ id: randomUUID(), ...input, status: "ACTIVE", createdAt: timestamp, updatedAt: timestamp });
@@ -175,6 +187,8 @@ export class MemoryDomainStore implements DomainStore {
   public async listCandidates(params: PageParams): Promise<Page<Candidate>> { return pageSlice(this.candidateItems, params); }
   public async createCandidate(input: CreateCandidateInput): Promise<Candidate> { const item: Candidate = { id: randomUUID(), ...input, status: "DISCOVERED", scoreTotal: input.scoreTotal ?? 0, createdAt: now(), updatedAt: now() }; this.candidateItems.push(item); return item; }
   public async selectCandidate(id: string): Promise<Candidate | undefined> { return this.updateCandidate(id, { status: "SELECTED" }); }
+  public async analyzeCandidate(id: string): Promise<Candidate | undefined> { return this.updateCandidate(id, { status: "QUALIFIED", analysis: { provider: "deterministic", analyzedAt: now(), decision: "qualified_for_planning" } }); }
+  public async planCandidate(id: string): Promise<Candidate | undefined> { return this.updateCandidate(id, { status: "SELECTED", analysis: { ...(this.candidateItems.find((item) => item.id === id)?.analysis ?? {}), plannedAt: now() } }); }
   public async rejectCandidate(id: string, reason: string): Promise<Candidate | undefined> { return this.updateCandidate(id, { status: "REJECTED", rejectionReason: reason }); }
   private async updateCandidate(id: string, input: Partial<Candidate>): Promise<Candidate | undefined> { const item = this.candidateItems.find((candidate) => candidate.id === id); if (!item) return undefined; Object.assign(item, input, { updatedAt: now() }); return item; }
   public async listVideos(params: PageParams): Promise<Page<Video>> { return pageSlice(this.videoItems, params); }
@@ -187,6 +201,7 @@ export class MemoryDomainStore implements DomainStore {
   private async updateVideoStatus(id: string, status: VideoStatus): Promise<Video | undefined> { const item = await this.getVideo(id); if (!item) return undefined; Object.assign(item, { status, updatedAt: now() }); return item; }
   public async listPublications(params: PageParams): Promise<Page<Publication>> { return pageSlice(this.publicationItems, params); }
   public async createPublication(input: CreatePublicationInput): Promise<Publication> { const item: Publication = { id: randomUUID(), ...input, status: input.status ?? "SCHEDULED", attemptCount: 0, scheduledAt: input.scheduledAt, createdAt: now(), updatedAt: now() }; this.publicationItems.push(item); return item; }
+  public async retryPublication(id: string): Promise<Publication | undefined> { const item = this.publicationItems.find((candidate) => candidate.id === id); if (!item) return undefined; Object.assign(item, { status: "SCHEDULED", scheduledAt: now(), attemptCount: item.attemptCount + 1, lastError: undefined, updatedAt: now() }); return item; }
   public async listCosts(params: PageParams): Promise<Page<Cost>> { return pageSlice(this.costItems, params); }
   public async createCost(input: CreateCostInput): Promise<Cost> { const item: Cost = { id: randomUUID(), ...input, createdAt: now() }; this.costItems.push(item); return item; }
   public async listBudgets(params: PageParams): Promise<Page<Budget>> { return pageSlice(this.budgetItems, params); }
@@ -203,9 +218,9 @@ export class PostgresDomainStore implements DomainStore {
     const existing = await this.db.select({ id: channels.id }).from(channels).limit(1);
     if (existing.length > 0) return;
     const channelSeed: CreateChannelInput[] = [
-      { name: "Tech Tutorials", slug: "tech-tutorials", type: "TUTORIAL", language: "en", timezone: "Europe/Rome", videosPerDay: 6, minDuration: 18, maxDuration: 45, autoPublish: false, manualReviewRequired: true, monthlyBudget: 20 },
-      { name: "Streamer Commentary", slug: "streamer-commentary", type: "STREAMER_COMMENTARY", language: "en", timezone: "Europe/Rome", videosPerDay: 6, minDuration: 18, maxDuration: 45, autoPublish: false, manualReviewRequired: true, monthlyBudget: 15 },
-      { name: "Creator Stories", slug: "creator-stories", type: "CREATOR_STORY", language: "en", timezone: "Europe/Rome", videosPerDay: 6, minDuration: 18, maxDuration: 45, autoPublish: false, manualReviewRequired: true, monthlyBudget: 15 }
+      { name: "Tech Tutorials", slug: "tech-tutorials", type: "TUTORIAL", language: "en", timezone: "Europe/Rome", videosPerDay: 6, minDuration: 18, maxDuration: 45, autoPublish: false, manualReviewRequired: true, monthlyBudget: 20, publishingSlots: [...defaultPublishingSlots] },
+      { name: "Streamer Commentary", slug: "streamer-commentary", type: "STREAMER_COMMENTARY", language: "en", timezone: "Europe/Rome", videosPerDay: 6, minDuration: 18, maxDuration: 45, autoPublish: false, manualReviewRequired: true, monthlyBudget: 15, publishingSlots: [...defaultPublishingSlots] },
+      { name: "Creator Stories", slug: "creator-stories", type: "CREATOR_STORY", language: "en", timezone: "Europe/Rome", videosPerDay: 6, minDuration: 18, maxDuration: 45, autoPublish: false, manualReviewRequired: true, monthlyBudget: 15, publishingSlots: [...defaultPublishingSlots] }
     ];
     const seededChannels = await this.db.insert(channels).values(channelSeed).onConflictDoNothing({ target: channels.slug }).returning();
     const sourceSeed: CreateSourceInput[] = [
@@ -230,8 +245,10 @@ export class PostgresDomainStore implements DomainStore {
   public async listCandidates(params: PageParams): Promise<Page<Candidate>> { const [items, total] = await Promise.all([this.db.select().from(candidates).orderBy(desc(candidates.createdAt)).limit(params.pageSize).offset((params.page - 1) * params.pageSize), this.db.select({ value: count() }).from(candidates)]); return { items: items.map(toCandidate), total: Number(total[0]?.value ?? 0), ...params }; }
   public async createCandidate(input: CreateCandidateInput): Promise<Candidate> { const [item] = await this.db.insert(candidates).values(input).returning(); if (!item) throw new AppError("CREATE_FAILED", "candidate was not created"); return toCandidate(item); }
   public async selectCandidate(id: string): Promise<Candidate | undefined> { return this.updateCandidate(id, { status: "SELECTED" }); }
+  public async analyzeCandidate(id: string): Promise<Candidate | undefined> { return this.updateCandidate(id, { status: "QUALIFIED", analysisJson: { provider: "deterministic", analyzedAt: new Date().toISOString(), decision: "qualified_for_planning" } }); }
+  public async planCandidate(id: string): Promise<Candidate | undefined> { return this.updateCandidate(id, { status: "SELECTED", analysisJson: { plannedAt: new Date().toISOString() } }); }
   public async rejectCandidate(id: string, reason: string): Promise<Candidate | undefined> { return this.updateCandidate(id, { status: "REJECTED", rejectionReason: reason }); }
-  private async updateCandidate(id: string, input: { status: CandidateStatus; rejectionReason?: string }): Promise<Candidate | undefined> { const [item] = await this.db.update(candidates).set({ ...input, updatedAt: new Date() }).where(eq(candidates.id, id)).returning(); return item ? toCandidate(item) : undefined; }
+  private async updateCandidate(id: string, input: { status: CandidateStatus; rejectionReason?: string; analysisJson?: Record<string, unknown> }): Promise<Candidate | undefined> { const [item] = await this.db.update(candidates).set({ ...input, updatedAt: new Date() }).where(eq(candidates.id, id)).returning(); return item ? toCandidate(item) : undefined; }
   public async listVideos(params: PageParams): Promise<Page<Video>> { const [items, total] = await Promise.all([this.db.select().from(videos).orderBy(desc(videos.createdAt)).limit(params.pageSize).offset((params.page - 1) * params.pageSize), this.db.select({ value: count() }).from(videos)]); return { items: items.map(toVideo), total: Number(total[0]?.value ?? 0), ...params }; }
   public async getVideo(id: string): Promise<Video | undefined> { const [item] = await this.db.select().from(videos).where(eq(videos.id, id)); return item ? toVideo(item) : undefined; }
   public async createVideo(input: CreateVideoInput): Promise<Video> { const [item] = await this.db.insert(videos).values(input).returning(); if (!item) throw new AppError("CREATE_FAILED", "video was not created"); return toVideo(item); }
@@ -242,18 +259,19 @@ export class PostgresDomainStore implements DomainStore {
   private async updateVideoStatus(id: string, status: VideoStatus): Promise<Video | undefined> { const [item] = await this.db.update(videos).set({ status, updatedAt: new Date() }).where(eq(videos.id, id)).returning(); return item ? toVideo(item) : undefined; }
   public async listPublications(params: PageParams): Promise<Page<Publication>> { const [items, total] = await Promise.all([this.db.select().from(publications).orderBy(desc(publications.createdAt)).limit(params.pageSize).offset((params.page - 1) * params.pageSize), this.db.select({ value: count() }).from(publications)]); return { items: items.map(toPublication), total: Number(total[0]?.value ?? 0), ...params }; }
   public async createPublication(input: CreatePublicationInput): Promise<Publication> { const [item] = await this.db.insert(publications).values({ ...input, scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : undefined }).returning(); if (!item) throw new AppError("CREATE_FAILED", "publication was not created"); return toPublication(item); }
+  public async retryPublication(id: string): Promise<Publication | undefined> { const [item] = await this.db.update(publications).set({ status: "SCHEDULED", scheduledAt: new Date(), attemptCount: sql`${publications.attemptCount} + 1`, lastError: null, updatedAt: new Date() }).where(eq(publications.id, id)).returning(); return item ? toPublication(item) : undefined; }
   public async listCosts(params: PageParams): Promise<Page<Cost>> { const [items, total] = await Promise.all([this.db.select().from(costs).orderBy(desc(costs.createdAt)).limit(params.pageSize).offset((params.page - 1) * params.pageSize), this.db.select({ value: count() }).from(costs)]); return { items: items.map(toCost), total: Number(total[0]?.value ?? 0), ...params }; }
   public async createCost(input: CreateCostInput): Promise<Cost> { const [item] = await this.db.insert(costs).values(input).returning(); if (!item) throw new AppError("CREATE_FAILED", "cost was not created"); return toCost(item); }
   public async listBudgets(params: PageParams): Promise<Page<Budget>> { const [items, total] = await Promise.all([this.db.select().from(schema.budgets).orderBy(desc(schema.budgets.createdAt)).limit(params.pageSize).offset((params.page - 1) * params.pageSize), this.db.select({ value: count() }).from(schema.budgets)]); return { items: items.map(toBudget), total: Number(total[0]?.value ?? 0), ...params }; }
   public async createBudget(input: CreateBudgetInput): Promise<Budget> { const [item] = await this.db.insert(schema.budgets).values(input).returning(); if (!item) throw new AppError("CREATE_FAILED", "budget was not created"); return toBudget(item); }
 }
 
-function toChannel(row: typeof channels.$inferSelect): Channel { return { id: row.id, name: row.name, slug: row.slug, type: row.type, language: row.language, timezone: row.timezone, status: row.status, videosPerDay: row.videosPerDay, minDuration: row.minDuration, maxDuration: row.maxDuration, autoPublish: row.autoPublish, manualReviewRequired: row.manualReviewRequired, monthlyBudget: row.monthlyBudget, createdAt: requiredIso(row.createdAt), updatedAt: requiredIso(row.updatedAt) }; }
-function toSource(row: typeof sources.$inferSelect): Source { return { id: row.id, name: row.name, type: row.type, url: row.url, platform: row.platform ?? undefined, rightsStatus: row.rightsStatus, creator: row.creator ?? undefined, notes: row.notes ?? undefined, enabled: row.enabled, createdAt: requiredIso(row.createdAt), updatedAt: requiredIso(row.updatedAt) }; }
+function toChannel(row: typeof channels.$inferSelect): Channel { return { id: row.id, name: row.name, slug: row.slug, type: row.type, language: row.language, timezone: row.timezone, status: row.status, videosPerDay: row.videosPerDay, minDuration: row.minDuration, maxDuration: row.maxDuration, autoPublish: row.autoPublish, manualReviewRequired: row.manualReviewRequired, monthlyBudget: row.monthlyBudget, publishingSlots: row.publishingSlots, keywords: row.keywords, priority: row.priority, settings: row.settings, killSwitches: row.killSwitches, createdAt: requiredIso(row.createdAt), updatedAt: requiredIso(row.updatedAt) }; }
+function toSource(row: typeof sources.$inferSelect): Source { return { id: row.id, name: row.name, type: row.type, url: row.url, platform: row.platform ?? undefined, rightsStatus: row.rightsStatus, creator: row.creator ?? undefined, notes: row.notes ?? undefined, licenseUrl: row.licenseUrl ?? undefined, attributionRequired: row.attributionRequired, attributionText: row.attributionText ?? undefined, keywords: row.keywords, enabled: row.enabled, createdAt: requiredIso(row.createdAt), updatedAt: requiredIso(row.updatedAt) }; }
 function toCandidate(row: typeof candidates.$inferSelect): Candidate { return { id: row.id, channelId: row.channelId, sourceAssetId: row.sourceAssetId ?? undefined, status: row.status, topic: row.topic, scoreTotal: row.scoreTotal, analysis: row.analysisJson ?? undefined, rejectionReason: row.rejectionReason ?? undefined, createdAt: requiredIso(row.createdAt), updatedAt: requiredIso(row.updatedAt) }; }
 function toVideo(row: typeof videos.$inferSelect): Video { return { id: row.id, channelId: row.channelId, candidateId: row.candidateId ?? undefined, contentPlanId: row.contentPlanId ?? undefined, status: row.status, storageKey: row.storageKey ?? undefined, thumbnailKey: row.thumbnailKey ?? undefined, duration: row.duration ?? undefined, width: row.width ?? undefined, height: row.height ?? undefined, fileSize: row.fileSize ?? undefined, contentHash: row.contentHash ?? undefined, renderVersion: row.renderVersion, qualityScore: row.qualityScore ?? undefined, rightsStatus: row.rightsStatus, metadata: row.metadataJson ?? undefined, createdAt: requiredIso(row.createdAt), updatedAt: requiredIso(row.updatedAt) }; }
 function toPublication(row: typeof publications.$inferSelect): Publication { return { id: row.id, videoId: row.videoId, platformAccountId: row.platformAccountId ?? undefined, platform: row.platform, status: row.status, scheduledAt: iso(row.scheduledAt), publishedAt: iso(row.publishedAt), externalPostId: row.externalPostId ?? undefined, externalUrl: row.externalUrl ?? undefined, attemptCount: row.attemptCount, lastError: row.lastError ?? undefined, createdAt: requiredIso(row.createdAt), updatedAt: requiredIso(row.updatedAt) }; }
 function toCost(row: typeof costs.$inferSelect): Cost { return { id: row.id, provider: row.provider, service: row.service, operation: row.operation, channelId: row.channelId ?? undefined, candidateId: row.candidateId ?? undefined, videoId: row.videoId ?? undefined, quantity: row.quantity, unit: row.unit, estimatedCostEur: row.estimatedCostEur, actualCostEur: row.actualCostEur ?? undefined, createdAt: requiredIso(row.createdAt) }; }
-function toBudget(row: typeof schema.budgets.$inferSelect): Budget { return { id: row.id, scope: row.scope, scopeId: row.scopeId, period: row.period, budgetEur: row.budgetEur, spentEur: row.spentEur, reservedEur: row.reservedEur, warningThreshold: row.warningThreshold, hardStop: row.hardStop, createdAt: requiredIso(row.createdAt) }; }
+function toBudget(row: typeof schema.budgets.$inferSelect): Budget { return { id: row.id, scope: row.scope, scopeId: row.scopeId, period: row.period, budgetEur: row.budgetEur, spentEur: row.spentEur, reservedEur: row.reservedEur, warningThreshold: row.warningThreshold, hardStop: row.hardStop, createdAt: requiredIso(row.createdAt), updatedAt: requiredIso(row.updatedAt) }; }
 
 export function createPostgresDomainStore(client: { pool: Pool }): PostgresDomainStore { return new PostgresDomainStore(drizzle(client.pool, { schema })); }

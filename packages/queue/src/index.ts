@@ -1,4 +1,4 @@
-import { Queue } from "bullmq";
+import { Queue, Worker } from "bullmq";
 import IORedis from "ioredis";
 import type { ServiceMode } from "@shortfactory/shared";
 
@@ -26,6 +26,9 @@ export interface QueueClient {
   getDeadLetters?(): Array<DeadLetterJob>;
   close(): Promise<void>;
 }
+
+export type QueueProcessor = (job: QueueJob<unknown>) => Promise<void>;
+export interface QueueWorkerHandle { close(): Promise<void>; }
 
 class MockQueue implements QueueClient {
   public readonly mode = "mock" as const;
@@ -75,7 +78,7 @@ class RedisQueue implements QueueClient {
   public async enqueue<TPayload>(queueName: string, job: QueueJob<TPayload>): Promise<void> {
     const queue = this.queues.get(queueName) ?? new Queue(queueName, { connection: this.connection });
     this.queues.set(queueName, queue);
-    await queue.add(job.name, job.payload, {
+    await queue.add(job.name, job, {
       jobId: job.idempotencyKey ?? `${job.name}:${job.correlationId}`,
       attempts: 3,
       backoff: { type: "exponential", delay: 1000 },
@@ -96,6 +99,31 @@ class RedisQueue implements QueueClient {
     await Promise.all([...this.queues.values(), ...this.deadLetterQueues.values()].map((queue) => queue.close()));
     await this.connection.quit();
   }
+}
+
+class MockQueueWorker implements QueueWorkerHandle {
+  public async close(): Promise<void> { return Promise.resolve(); }
+}
+
+class RedisQueueWorker implements QueueWorkerHandle {
+  public constructor(private readonly worker: Worker, private readonly deadLetterQueue: Queue) {}
+  public async close(): Promise<void> { await this.worker.close(); await this.deadLetterQueue.close(); }
+}
+
+export function createQueueWorker(mode: "mock" | "redis", url: string, queueName: string, processor: QueueProcessor, options: { concurrency?: number } = {}): QueueWorkerHandle {
+  if (mode === "mock") return new MockQueueWorker();
+  const connection = new IORedis(url, { maxRetriesPerRequest: null });
+  const deadLetterQueue = new Queue(`${queueName}.dead-letter`, { connection });
+  const worker = new Worker(queueName, async (job) => {
+    const payload = job.data as QueueJob<unknown>;
+    await processor({ ...payload, name: payload.name ?? job.name });
+  }, { connection, concurrency: options.concurrency ?? 1 });
+  worker.on("failed", (job, error) => {
+    if (!job || job.attemptsMade < 3) return;
+    void deadLetterQueue.add("dead-letter", { originalQueue: queueName, job: job.data, error: error instanceof Error ? error.message : "job failed", failedAt: new Date().toISOString() }, { jobId: `dlq:${queueName}:${job.id ?? job.name}`, removeOnComplete: false, removeOnFail: false });
+  });
+  worker.on("error", () => undefined);
+  return new RedisQueueWorker(worker, deadLetterQueue);
 }
 
 export function createQueue(mode: "mock" | "redis", url: string): QueueClient {

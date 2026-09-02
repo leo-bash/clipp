@@ -55,3 +55,15 @@
 - Reason: A resumable pipeline needs observable failures and recoverable state; destructive restore operations must require an explicit confirmation flag.
 - Alternatives considered: Logging only to stdout without correlation, dropping permanent failures, relying on unversioned database snapshots.
 - Consequences: Operators use `docs/RUNBOOK.md`; backup storage and scheduler/cron execution remain deployment responsibilities.
+
+## 2026-09-02 — R2/S3-compatible storage as the first remote adapter
+
+- Decision: Keep local storage as the explicit development default and select Cloudflare R2/S3-compatible storage only when the complete runtime configuration is present.
+- Reason: The specification requires remote object storage while local tests must remain deterministic and must not fabricate credentials.
+- Consequences: `R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY` and `R2_SECRET_KEY` are runtime-only; readiness reports local storage as degraded and remote storage as ready only when configured.
+
+## 2026-09-02 — Queue consumers with bounded retries and DLQ retention
+
+- Decision: Workers consume BullMQ jobs through a shared queue boundary, with three attempts and terminal failure retention under a per-queue dead-letter queue.
+- Reason: The orchestrator already emits idempotent jobs; a runnable consumer boundary is required for operational recovery and does not couple workers to the API.
+- Consequences: Production uses Redis/BullMQ; mock mode remains a no-op consumer for deterministic local startup and tests.

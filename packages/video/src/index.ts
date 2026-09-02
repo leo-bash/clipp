@@ -10,7 +10,25 @@ const execFileAsync = promisify(execFile);
 export interface MediaStream { codecType: "video" | "audio" | string; codecName?: string; width?: number; height?: number; }
 export interface MediaProbe { format: { duration?: number; size?: number; formatName?: string }; streams: MediaStream[]; }
 export interface CaptionCue { start: number; end: number; text: string; }
-export interface RenderPlan { inputPath: string; outputPath: string; width?: number; height?: number; trimStart?: number; duration?: number; captions?: CaptionCue[]; audioRequired?: boolean; }
+export type SubtitlePreset = "clean" | "dynamic" | "minimal";
+export interface SubtitleOptions { preset?: SubtitlePreset; maxWordsPerLine?: number; safeMargin?: number; fontName?: string; fontSize?: number; alignment?: number; }
+export interface RenderPlan {
+  inputPath: string;
+  outputPath: string;
+  width?: number;
+  height?: number;
+  trimStart?: number;
+  duration?: number;
+  captions?: CaptionCue[];
+  subtitleOptions?: SubtitleOptions;
+  overlayPath?: string;
+  backgroundBlur?: boolean;
+  audioRequired?: boolean;
+  audioVolume?: number;
+  compression?: { crf?: number; preset?: "ultrafast" | "fast" | "veryfast" | "medium" | "slow" };
+  thumbnailOutputPath?: string;
+  metadata?: Record<string, string>;
+}
 export interface QcCheck { name: string; passed: boolean; critical: boolean; detail?: string; }
 export interface QualityControlResult { passed: boolean; score: number; checks: QcCheck[]; probe?: MediaProbe; }
 export interface RenderResult { outputPath: string; probe: MediaProbe; qc: QualityControlResult; durationMs: number; }
@@ -56,6 +74,8 @@ export class FFmpegRenderer implements VideoRenderer {
   public async render(plan: RenderPlan, qcConfig: QcConfig = defaultQcConfig): Promise<RenderResult> {
     assertPath(plan.inputPath);
     assertPath(plan.outputPath);
+    if (plan.overlayPath) assertPath(plan.overlayPath);
+    if (plan.thumbnailOutputPath) assertPath(plan.thumbnailOutputPath);
     const width = plan.width ?? qcConfig.width;
     const height = plan.height ?? qcConfig.height;
     if (width <= 0 || height <= 0 || width % 2 !== 0 || height % 2 !== 0) throw new ValidationError("render dimensions must be positive even numbers");
@@ -69,13 +89,18 @@ export class FFmpegRenderer implements VideoRenderer {
       const filters = [`scale=${width}:${height}:force_original_aspect_ratio=increase`, `crop=${width}:${height}`, "setsar=1"];
       if (plan.captions && plan.captions.length > 0) {
         subtitlePath = path.join(temporaryDir, "captions.ass");
-        await writeFile(subtitlePath, renderAss(plan.captions));
+        await writeFile(subtitlePath, renderAss(plan.captions, plan.subtitleOptions));
         filters.push(await captionFilter(this.ffmpegBinary, subtitlePath));
       }
-      const args = ["-y", "-hide_banner", "-loglevel", "error", ...(plan.trimStart ? ["-ss", String(plan.trimStart)] : []), "-i", plan.inputPath, ...(plan.duration ? ["-t", String(plan.duration)] : []), "-vf", filters.join(","), "-map", "0:v:0", ...(hasAudio ? ["-map", "0:a:0", "-c:a", "aac", "-b:a", "128k", "-af", "loudnorm=I=-16:TP=-1.5:LRA=11", "-shortest"] : ["-an"]), "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart", plan.outputPath];
+      const videoFilter = filters.join(",");
+      const inputArgs = ["-y", "-hide_banner", "-loglevel", "error", ...(plan.trimStart ? ["-ss", String(plan.trimStart)] : []), "-i", plan.inputPath, ...(plan.overlayPath ? ["-i", plan.overlayPath] : []), ...(plan.duration ? ["-t", String(plan.duration)] : [])];
+      const mappedVideo = plan.overlayPath ? ["-filter_complex", `[0:v]${videoFilter}[base];[1:v]format=rgba[overlay];[base][overlay]overlay=0:0[v]`, "-map", "[v]"] : ["-vf", videoFilter, "-map", "0:v:0"];
+      const audioFilter = `loudnorm=I=-16:TP=-1.5:LRA=11${plan.audioVolume === undefined ? "" : `,volume=${clampVolume(plan.audioVolume)}`}`;
+      const args = [...inputArgs, ...mappedVideo, ...(hasAudio ? ["-map", "0:a:0", "-c:a", "aac", "-b:a", "128k", "-af", audioFilter, "-shortest"] : ["-an"]), "-c:v", "libx264", "-preset", plan.compression?.preset ?? "veryfast", "-crf", String(plan.compression?.crf ?? 23), "-pix_fmt", "yuv420p", "-movflags", "+faststart", ...metadataArgs(plan.metadata), plan.outputPath];
       await execFileAsync(this.ffmpegBinary, args, { maxBuffer: 4 * 1024 * 1024 });
       const probe = await probeMedia(plan.outputPath, this.ffprobeBinary);
       const qc = await runQualityControl(plan.outputPath, qcConfig, this.ffprobeBinary);
+      if (plan.thumbnailOutputPath) await extractThumbnail(plan.outputPath, plan.thumbnailOutputPath, this.ffmpegBinary);
       return { outputPath: plan.outputPath, probe, qc, durationMs: Date.now() - started };
     } catch (error) { if (error instanceof RenderError) throw error; throw new RenderError(`ffmpeg render failed: ${error instanceof Error ? error.message : "unknown error"}`, true); } finally { await rm(temporaryDir, { recursive: true, force: true }); }
   }
@@ -90,5 +115,22 @@ async function captionFilter(ffmpegBinary: string, subtitlePath: string): Promis
   if (!filterName) throw new RenderError("caption burn-in requires an FFmpeg build with ass or subtitles filter");
   return `${filterName}=filename='${escapeFilterPath(subtitlePath)}'`;
 }
-function renderAss(cues: CaptionCue[]): string { const lines = cues.map((cue) => `Dialogue: 0,${assTime(cue.start)},${assTime(cue.end)},Default,,0,0,0,,${cue.text.replaceAll("\\", "\\\\").replaceAll("{", "(").replaceAll("}", ")").replaceAll("\n", "\\N")}`); return `[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Default,Arial,64,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,3,1,2,80,80,160,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n${lines.join("\n")}\n`; }
+export function createSubtitleCues(cues: CaptionCue[], options: SubtitleOptions = {}): CaptionCue[] {
+  const maxWords = options.maxWordsPerLine ?? (options.preset === "minimal" ? 10 : 7);
+  return cues.map((cue) => ({ ...cue, text: wrapSubtitleText(cue.text, maxWords) }));
+}
+
+export function renderAss(cues: CaptionCue[], options: SubtitleOptions = {}): string {
+  const preset = options.preset ?? "clean";
+  const fontName = options.fontName ?? "Arial";
+  const fontSize = options.fontSize ?? (preset === "minimal" ? 54 : preset === "dynamic" ? 70 : 64);
+  const alignment = options.alignment ?? 2;
+  const safeMargin = options.safeMargin ?? 160;
+  const bold = preset === "dynamic" ? 1 : 0;
+  const lines = createSubtitleCues(cues, options).map((cue) => `Dialogue: 0,${assTime(cue.start)},${assTime(cue.end)},Default,,0,0,0,,${cue.text.replaceAll("\\", "\\\\").replaceAll("{", "(").replaceAll("}", ")").replaceAll("\n", "\\N")}`);
+  return `[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Default,${fontName},${fontSize},&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,${bold},0,0,0,100,100,0,0,1,3,1,${alignment},${safeMargin},${safeMargin},${safeMargin},1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n${lines.join("\n")}\n`; }
+function wrapSubtitleText(text: string, maxWords: number): string { const words = text.trim().split(/\s+/u); const lines: string[] = []; for (let index = 0; index < words.length; index += maxWords) lines.push(words.slice(index, index + maxWords).join(" ")); return lines.join("\n"); }
 function assTime(seconds: number): string { const safe = Math.max(0, seconds); const hours = Math.floor(safe / 3600); const minutes = Math.floor((safe % 3600) / 60); const whole = Math.floor(safe % 60); const centiseconds = Math.floor((safe - Math.floor(safe)) * 100); return `${hours}:${String(minutes).padStart(2, "0")}:${String(whole).padStart(2, "0")}.${String(centiseconds).padStart(2, "0")}`; }
+function clampVolume(value: number): number { if (!Number.isFinite(value)) throw new ValidationError("audio volume must be finite"); return Math.min(4, Math.max(0, value)); }
+function metadataArgs(metadata: Record<string, string> | undefined): string[] { return Object.entries(metadata ?? {}).flatMap(([key, value]) => ["-metadata", `${key}=${value}`]); }
+async function extractThumbnail(inputPath: string, outputPath: string, ffmpegBinary: string): Promise<void> { await execFileAsync(ffmpegBinary, ["-y", "-hide_banner", "-loglevel", "error", "-i", inputPath, "-frames:v", "1", "-q:v", "2", outputPath], { maxBuffer: 2 * 1024 * 1024 }); }

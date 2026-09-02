@@ -1,6 +1,6 @@
 import { relations } from "drizzle-orm";
 import { boolean, integer, jsonb, pgEnum, pgTable, real, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
-import { candidateStatuses, channelStatuses, channelTypes, platforms, publicationStatuses, rightsStatuses, roles, videoStatuses } from "@shortfactory/shared";
+import { candidateStatuses, channelStatuses, channelTypes, defaultPublishingSlots, platforms, publicationStatuses, rightsStatuses, roles, videoStatuses } from "@shortfactory/shared";
 
 const createdAt = () => timestamp("created_at", { withTimezone: true }).defaultNow().notNull();
 const updatedAt = () => timestamp("updated_at", { withTimezone: true }).defaultNow().notNull();
@@ -37,6 +37,11 @@ export const channels = pgTable("channels", {
   autoPublish: boolean("auto_publish").notNull().default(false),
   manualReviewRequired: boolean("manual_review_required").notNull().default(true),
   monthlyBudget: real("monthly_budget").notNull().default(0),
+  publishingSlots: jsonb("publishing_slots").$type<string[]>().notNull().default([...defaultPublishingSlots]),
+  keywords: jsonb("keywords").$type<string[]>().notNull().default([]),
+  priority: integer("priority").notNull().default(0),
+  settings: jsonb("settings").$type<Record<string, unknown>>().notNull().default({}),
+  killSwitches: jsonb("kill_switches").$type<Record<string, boolean>>().notNull().default({}),
   createdAt: createdAt(),
   updatedAt: updatedAt()
 }, (table) => ({ slugUnique: uniqueIndex("channels_slug_unique").on(table.slug) }));
@@ -63,6 +68,10 @@ export const sources = pgTable("sources", {
   rightsStatus: rightsStatusEnum("rights_status").notNull().default("UNKNOWN"),
   creator: text("creator"),
   notes: text("notes"),
+  licenseUrl: text("license_url"),
+  attributionRequired: boolean("attribution_required").notNull().default(false),
+  attributionText: text("attribution_text"),
+  keywords: jsonb("keywords").$type<string[]>().notNull().default([]),
   enabled: boolean("enabled").notNull().default(true),
   createdAt: createdAt(),
   updatedAt: updatedAt()
@@ -88,7 +97,7 @@ export const sourceAssets = pgTable("source_assets", {
   metadataJson: jsonb("metadata_json").$type<Record<string, unknown>>(),
   contentHash: text("content_hash"),
   createdAt: createdAt()
-}, (table) => ({ externalUnique: uniqueIndex("source_assets_source_external_unique").on(table.sourceId, table.externalId), hashUnique: uniqueIndex("source_assets_content_hash_unique").on(table.contentHash) }));
+}, (table) => ({ externalUnique: uniqueIndex("source_assets_source_external_unique").on(table.sourceId, table.externalId), sourceUrlUnique: uniqueIndex("source_assets_source_url_unique").on(table.sourceUrl), hashUnique: uniqueIndex("source_assets_content_hash_unique").on(table.contentHash) }));
 
 export const candidates = pgTable("candidates", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -216,7 +225,8 @@ export const budgets = pgTable("budgets", {
   reservedEur: real("reserved_eur").notNull().default(0),
   warningThreshold: real("warning_threshold").notNull().default(0.75),
   hardStop: boolean("hard_stop").notNull().default(true),
-  createdAt: createdAt()
+  createdAt: createdAt(),
+  updatedAt: updatedAt()
 }, (table) => ({ scopePeriodUnique: uniqueIndex("budgets_scope_scope_id_period_unique").on(table.scope, table.scopeId, table.period) }));
 
 export const costReservations = pgTable("cost_reservations", {

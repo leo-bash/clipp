@@ -10,10 +10,14 @@ import { RightsGate } from "@shortfactory/rights";
 import { createLogger } from "@shortfactory/logger";
 import { createQueue, type QueueClient } from "@shortfactory/queue";
 import type { DependencyHealth, HealthStatus, ReadinessResponse } from "@shortfactory/shared";
-import { AppError } from "@shortfactory/shared";
+import { AppError, type OperationalControls } from "@shortfactory/shared";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { registerDomainRoutes, isRequestValidationError } from "./domain-routes.js";
 import { registerAnalyticsRoutes } from "./analytics-routes.js";
 import { MetricsRegistry } from "./metrics.js";
+
+const execFileAsync = promisify(execFile);
 
 export interface AppDependencies {
   database: DatabaseClient;
@@ -38,6 +42,7 @@ function statusFromChecks(checks: DependencyHealth[]): HealthStatus {
 export async function buildApp(config: AppConfig, supplied?: Partial<AppDependencies>): Promise<ShortFactoryApp> {
   const logger = createLogger(config.LOG_LEVEL);
   const metrics = new MetricsRegistry();
+  const controls: OperationalControls = { stopAllPublishing: config.STOP_ALL_PUBLISHING, stopRendering: config.STOP_RENDERING, stopPaidApis: config.STOP_PAID_APIS };
   const database = supplied?.database ?? createDatabase(config.DATABASE_MODE, config.DATABASE_URL);
   const dependencies: AppDependencies = {
     database,
@@ -75,8 +80,8 @@ export async function buildApp(config: AppConfig, supplied?: Partial<AppDependen
     return reply.code(500).send({ error: "INTERNAL_ERROR" });
   });
 
-  await registerDomainRoutes(server, dependencies.database.domain, dependencies.costControl, dependencies.rightsGate);
-  await registerDomainRoutes(server, dependencies.database.domain, dependencies.costControl, dependencies.rightsGate, "/api/v1");
+  await registerDomainRoutes(server, dependencies.database.domain, dependencies.costControl, dependencies.rightsGate, "", controls);
+  await registerDomainRoutes(server, dependencies.database.domain, dependencies.costControl, dependencies.rightsGate, "/api/v1", controls);
   await registerAnalyticsRoutes(server, dependencies.analyticsStore);
   await registerAnalyticsRoutes(server, dependencies.analyticsStore, "/api/v1");
 
@@ -96,7 +101,12 @@ export async function buildApp(config: AppConfig, supplied?: Partial<AppDependen
       dependencies.queue.ping().then(
         () => ({ name: "redis", status: dependencies.queue.mode === "mock" ? "degraded" : "ok", mode: dependencies.queue.mode } as const),
         (error: unknown) => ({ name: "redis", status: "down", mode: dependencies.queue.mode, detail: error instanceof Error ? error.message : "queue ping failed" } as const)
-      )
+      ),
+      checkFfmpeg(),
+      Promise.resolve({ name: "storage", status: config.R2_ENDPOINT && config.R2_BUCKET ? "ok" : "degraded", mode: "mock", detail: config.R2_ENDPOINT && config.R2_BUCKET ? "R2/S3-compatible storage configured" : "local storage adapter active" } as const),
+      Promise.resolve({ name: "llm", status: "degraded", mode: "mock", detail: "deterministic adapter active; configure a paid provider before production" } as const),
+      Promise.resolve({ name: "tts", status: "degraded", mode: "mock", detail: "TTS is disabled until a provider is configured" } as const),
+      Promise.resolve({ name: "platforms", status: "degraded", mode: "mock", detail: "platform credentials are validated at publish time" } as const)
     ]);
     const status = statusFromChecks(checks);
     const response: ReadinessResponse = {
@@ -129,6 +139,15 @@ export async function buildApp(config: AppConfig, supplied?: Partial<AppDependen
       await dependencies.database.close();
     }
   };
+}
+
+async function checkFfmpeg(): Promise<DependencyHealth> {
+  try {
+    await execFileAsync("ffmpeg", ["-version"], { maxBuffer: 64 * 1024 });
+    return { name: "ffmpeg", status: "ok", mode: "mock", detail: "local FFmpeg available" };
+  } catch {
+    return { name: "ffmpeg", status: "down", mode: "mock", detail: "FFmpeg is required for rendering" };
+  }
 }
 
 function dependenciesLedger(database: DatabaseClient) {

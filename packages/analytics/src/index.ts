@@ -5,9 +5,18 @@ import type { AnalyticsSnapshot, PlatformPublisher } from "@shortfactory/platfor
 import { analyticsSnapshots, schema } from "@shortfactory/database";
 import { AppError } from "@shortfactory/shared";
 
-export interface AnalyticsSnapshotRecord extends AnalyticsSnapshot { id: string; publicationId: string; platform: string; externalPostId: string; capturedAt: string; followersGained: number; }
+export interface AnalyticsSnapshotRecord extends AnalyticsSnapshot { id: string; publicationId: string; platform: string; externalPostId: string; capturedAt: string; followersGained: number; channelId?: string; metadata?: Record<string, unknown>; }
 export interface AnalyticsSnapshotStore { save(snapshot: Omit<AnalyticsSnapshotRecord, "id">): Promise<AnalyticsSnapshotRecord>; list(publicationId?: string): Promise<AnalyticsSnapshotRecord[]>; }
 export interface AnalyticsOverview { snapshotCount: number; totals: Pick<AnalyticsSnapshot, "views" | "likes" | "comments" | "shares"> & { followersGained: number }; byPlatform: Record<string, Pick<AnalyticsSnapshot, "views" | "likes" | "comments" | "shares">>; }
+
+export const analyticsWindows = ["1h", "6h", "24h", "72h", "7d"] as const;
+export type AnalyticsWindow = (typeof analyticsWindows)[number];
+export interface AnalyticsCollectionJob { publicationId: string; window: AnalyticsWindow; idempotencyKey: string; runAfter: string; }
+
+export function scheduleAnalyticsWindows(publicationId: string, publishedAt: Date, now = new Date()): AnalyticsCollectionJob[] {
+  const offsets: Record<AnalyticsWindow, number> = { "1h": 60 * 60_000, "6h": 6 * 60 * 60_000, "24h": 24 * 60 * 60_000, "72h": 72 * 60 * 60_000, "7d": 7 * 24 * 60 * 60_000 };
+  return analyticsWindows.map((window) => ({ publicationId, window, idempotencyKey: `analytics:${publicationId}:${window}`, runAfter: new Date(Math.max(now.getTime(), publishedAt.getTime() + offsets[window])).toISOString() }));
+}
 
 export function buildAnalyticsOverview(snapshots: AnalyticsSnapshotRecord[]): AnalyticsOverview {
   const totals = { views: 0, likes: 0, comments: 0, shares: 0, followersGained: 0 };
@@ -25,18 +34,18 @@ export class InMemoryAnalyticsSnapshotStore implements AnalyticsSnapshotStore {
 type PgDb = NodePgDatabase<typeof schema>;
 export class PostgresAnalyticsSnapshotStore implements AnalyticsSnapshotStore {
   public constructor(private readonly db: PgDb) {}
-  public async save(snapshot: Omit<AnalyticsSnapshotRecord, "id">): Promise<AnalyticsSnapshotRecord> { const [row] = await this.db.insert(analyticsSnapshots).values({ publicationId: snapshot.publicationId, capturedAt: new Date(snapshot.capturedAt), views: snapshot.views, likes: snapshot.likes, comments: snapshot.comments, shares: snapshot.shares, watchTime: snapshot.watchTime, metadataJson: { platform: snapshot.platform, externalPostId: snapshot.externalPostId, followersGained: snapshot.followersGained } }).returning(); if (!row) throw new AppError("ANALYTICS_SAVE_FAILED", "analytics snapshot was not saved"); return toSnapshot(row); }
+  public async save(snapshot: Omit<AnalyticsSnapshotRecord, "id">): Promise<AnalyticsSnapshotRecord> { const [row] = await this.db.insert(analyticsSnapshots).values({ publicationId: snapshot.publicationId, capturedAt: new Date(snapshot.capturedAt), views: snapshot.views, likes: snapshot.likes, comments: snapshot.comments, shares: snapshot.shares, watchTime: snapshot.watchTime, metadataJson: { platform: snapshot.platform, externalPostId: snapshot.externalPostId, followersGained: snapshot.followersGained, channelId: snapshot.channelId, ...snapshot.metadata } }).returning(); if (!row) throw new AppError("ANALYTICS_SAVE_FAILED", "analytics snapshot was not saved"); return toSnapshot(row); }
   public async list(publicationId?: string): Promise<AnalyticsSnapshotRecord[]> { const rows = publicationId ? await this.db.select().from(analyticsSnapshots).where(eq(analyticsSnapshots.publicationId, publicationId)).orderBy(desc(analyticsSnapshots.capturedAt)) : await this.db.select().from(analyticsSnapshots).orderBy(desc(analyticsSnapshots.capturedAt)); return rows.map(toSnapshot); }
 }
 
 export function createPostgresAnalyticsSnapshotStore(pool: Pool): PostgresAnalyticsSnapshotStore { return new PostgresAnalyticsSnapshotStore(drizzle(pool, { schema })); }
 
-export interface AnalyticsPublication { publicationId: string; platform: string; externalPostId: string; publisher: PlatformPublisher; }
+export interface AnalyticsPublication { publicationId: string; platform: string; externalPostId: string; publisher: PlatformPublisher; channelId?: string; }
 export interface CollectionResult { status: "SUCCESS" | "PARTIAL_FAILURE"; snapshots: AnalyticsSnapshotRecord[]; failures: Array<{ platform: string; error: string }>; }
 
 export class AnalyticsCollector {
   public constructor(private readonly store: AnalyticsSnapshotStore, private readonly clock: () => Date = () => new Date()) {}
-  public async collect(publication: AnalyticsPublication): Promise<AnalyticsSnapshotRecord> { const metrics = await publication.publisher.getAnalytics(publication.externalPostId); return this.store.save({ ...metrics, publicationId: publication.publicationId, platform: publication.platform, externalPostId: publication.externalPostId, capturedAt: this.clock().toISOString(), followersGained: 0 }); }
+  public async collect(publication: AnalyticsPublication): Promise<AnalyticsSnapshotRecord> { const metrics = await publication.publisher.getAnalytics(publication.externalPostId); return this.store.save({ ...metrics, publicationId: publication.publicationId, platform: publication.platform, externalPostId: publication.externalPostId, capturedAt: this.clock().toISOString(), followersGained: 0, channelId: publication.channelId }); }
   public async collectMany(publications: AnalyticsPublication[]): Promise<CollectionResult> { const settled = await Promise.allSettled(publications.map((publication) => this.collect(publication))); const snapshots: AnalyticsSnapshotRecord[] = []; const failures: Array<{ platform: string; error: string }> = []; settled.forEach((result, index) => { const publication = publications[index]; if (result.status === "fulfilled") snapshots.push(result.value); else failures.push({ platform: publication?.platform ?? "unknown", error: result.reason instanceof Error ? result.reason.message : "analytics collection failed" }); }); return { status: failures.length === 0 ? "SUCCESS" : "PARTIAL_FAILURE", snapshots, failures }; }
 }
 
@@ -55,4 +64,4 @@ export function computePerformanceScore(signals: PerformanceSignals, weights: Pe
 }
 
 function clampPercent(value: number): number { return Math.min(100, Math.max(0, value)); }
-function toSnapshot(row: typeof analyticsSnapshots.$inferSelect): AnalyticsSnapshotRecord { const metadata = row.metadataJson ?? {}; return { id: row.id, publicationId: row.publicationId, platform: typeof metadata.platform === "string" ? metadata.platform : "unknown", externalPostId: typeof metadata.externalPostId === "string" ? metadata.externalPostId : "unknown", capturedAt: row.capturedAt.toISOString(), views: row.views, likes: row.likes, comments: row.comments, shares: row.shares, watchTime: row.watchTime ?? undefined, followersGained: typeof metadata.followersGained === "number" ? metadata.followersGained : 0 }; }
+function toSnapshot(row: typeof analyticsSnapshots.$inferSelect): AnalyticsSnapshotRecord { const metadata = row.metadataJson ?? {}; return { id: row.id, publicationId: row.publicationId, platform: typeof metadata.platform === "string" ? metadata.platform : "unknown", externalPostId: typeof metadata.externalPostId === "string" ? metadata.externalPostId : "unknown", capturedAt: row.capturedAt.toISOString(), views: row.views, likes: row.likes, comments: row.comments, shares: row.shares, watchTime: row.watchTime ?? undefined, followersGained: typeof metadata.followersGained === "number" ? metadata.followersGained : 0, channelId: typeof metadata.channelId === "string" ? metadata.channelId : undefined, metadata }; }

@@ -98,6 +98,58 @@ services:
       redis:
         condition: service_healthy
 
+  discovery-worker:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile
+    command: ["pnpm", "--filter", "@shortfactory/discovery-worker", "dev"]
+    environment:
+      NODE_ENV: development
+      QUEUE_MODE: redis
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  transcription-worker:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile
+    command: ["pnpm", "--filter", "@shortfactory/transcription-worker", "dev"]
+    environment:
+      NODE_ENV: development
+      QUEUE_MODE: redis
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  analysis-worker:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile
+    command: ["pnpm", "--filter", "@shortfactory/analysis-worker", "dev"]
+    environment:
+      NODE_ENV: development
+      QUEUE_MODE: redis
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  script-worker:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile
+    command: ["pnpm", "--filter", "@shortfactory/script-worker", "dev"]
+    environment:
+      NODE_ENV: development
+      QUEUE_MODE: redis
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+
   worker-render:
     build:
       context: .
@@ -131,6 +183,19 @@ services:
       context: .
       dockerfile: infrastructure/docker/Dockerfile
     command: ["pnpm", "--filter", "@shortfactory/analytics-worker", "dev"]
+    environment:
+      NODE_ENV: development
+      QUEUE_MODE: redis
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  cleanup-worker:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile
+    command: ["pnpm", "--filter", "@shortfactory/cleanup-worker", "dev"]
     environment:
       NODE_ENV: development
       QUEUE_MODE: redis

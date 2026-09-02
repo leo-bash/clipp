@@ -1,8 +1,6 @@
 # ShortFactory — Architecture
 
-## Phase 1 scope
-
-ShortFactory is a TypeScript monorepo designed for a single VPS first and horizontal worker scaling later. Phase 1 establishes process boundaries, configuration, structured logging, persistence/queue interfaces, and health checks. Domain models and CRUD are intentionally deferred to Phase 2.
+ShortFactory is a TypeScript monorepo designed for a single VPS first and horizontal worker scaling later. The implementation keeps API, dashboard and queue workers separate while sharing typed domain contracts, persistence, storage, media, cost and rights boundaries.
 
 ## Runtime topology
 
@@ -12,7 +10,7 @@ Browser → nginx (optional) → dashboard (Next.js)
                                ├→ database adapter → PostgreSQL
                                └→ queue adapter    → Redis/BullMQ
 
-orchestrator-worker / worker-light / worker-render / publisher-worker / analytics-worker → queue adapter → Redis/BullMQ
+orchestrator-worker / discovery / ingestion / transcription / analysis / planning / tts / render / qc / review / publish / analytics / cleanup workers → queue adapter → Redis/BullMQ
 ```
 
 The API never performs heavy FFmpeg work. Render work has a separate worker boundary so it can move to a dedicated host without changing business interfaces.
@@ -20,18 +18,18 @@ The API never performs heavy FFmpeg work. Render work has a separate worker boun
 ## Repository boundaries
 
 - `apps/api`: HTTP transport, health/readiness composition, and future application services.
-- `apps/dashboard`: Next.js shell for the operational dashboard.
-- `workers/*`: process entrypoints; business logic will live in packages, not worker bootstraps.
+- `apps/dashboard`: Next.js operator dashboard with overview, channels, candidates, videos, review, publishing, analytics, costs, sources, accounts, settings and system-health sections.
+- `workers/*`: process entrypoints and BullMQ consumers; business logic remains in packages, not worker bootstraps.
 - `packages/config`: validated runtime configuration.
 - `packages/logger`: Pino logger with secret redaction defaults.
 - `packages/database`: Drizzle schema, versioned migrations, PostgreSQL repository and in-memory repository.
 - `packages/queue`: BullMQ/Redis boundary with a deterministic mock for local development and tests.
 - `packages/cost-control`: budget ledger, idempotent reservations, hard stop and forecast service.
-- `packages/storage`: storage-provider contract and safe local filesystem adapter with retention cleanup hooks.
-- `packages/video`: FFprobe/FFmpeg renderer, ASS caption burn-in and deterministic media quality control.
+- `packages/storage`: storage-provider contract, safe local filesystem adapter and Cloudflare R2/S3-compatible adapter with retention cleanup hooks.
+- `packages/video`: FFprobe/FFmpeg renderer, subtitle presets/ASS caption burn-in, overlay/audio/compression/thumbnail support and deterministic media quality control.
 - `packages/transcription`: timestamped transcription contract, deterministic local adapter and cache boundary.
 - `packages/ai`: Zod-validated analysis/content-plan contracts, bounded retries, deterministic adapters and AI cost meter.
-- `packages/tts`: replaceable TTS contract with an explicit disabled adapter.
+- `packages/tts`: replaceable TTS contract with pre-generation cost estimation, cache-by-content key, budget gate, deterministic adapter and explicit disabled adapter.
 - `packages/platforms`: common publishing contract, independent mock publishers, timezone-aware scheduler/lock boundary and centralized in-memory/Redis provider rate limiter.
 - `packages/analytics`: snapshot collection, PostgreSQL/in-memory stores, overview aggregation and configurable normalized performance score.
 - `packages/orchestrator`: daily target/buffer calculation, centralized pipeline queue scheduling, distributed-lock seam and idempotent job keys.
@@ -40,7 +38,7 @@ The API never performs heavy FFmpeg work. Render work has a separate worker boun
 
 ## Design constraints
 
-Provider integrations use interfaces/adapters. Paid providers must be gated by cost control before execution. Rights and publication safety gates belong in domain/application packages in later phases. Secrets are runtime configuration only and are never logged or committed.
+Provider integrations use interfaces/adapters. Paid providers must be gated by cost control before execution. Rights and publication safety gates are enforced before render and publish operations. Secrets are runtime configuration only and are never logged or committed.
 
 The render worker owns media processing and receives absolute input/output paths from a storage adapter. It crops landscape or portrait sources into the configured vertical canvas, optionally burns captions, normalizes audio, and runs FFprobe-based QC before a render is accepted. A render container includes FFmpeg and FFprobe; the local adapter remains usable for tests and development.
 
@@ -54,7 +52,7 @@ The analytics worker collects platform snapshots independently and persists them
 
 The orchestrator worker runs the daily planning boundary. It calculates the active-channel target (default 3 × 6 = 18 unique videos), maintains a two-day ready buffer (36 videos), raises queue priority below one day of ready inventory, and reduces processing above 54 ready videos. It enqueues a deterministic batch job for each pipeline queue using an orchestration-date/channel/queue idempotency key. Redis/BullMQ applies the same key as the broker job ID and provides three attempts with exponential backoff; the in-memory adapter mirrors the contract for tests.
 
-The API applies secure headers, a bounded request body, configurable request rate limiting, correlation/request response headers, redacted structured logs and a Prometheus-compatible `/metrics` endpoint. Queue failures can be retained in per-queue dead-letter queues with the original error and idempotency metadata. PostgreSQL backups use custom-format `pg_dump` with 7 daily and 4 weekly retention; restore requires an explicit confirmation flag.
+The API applies secure headers, a bounded request body, configurable request rate limiting, correlation/request response headers, redacted structured logs and a Prometheus-compatible `/metrics` endpoint. `/ready` reports PostgreSQL, Redis, storage, FFmpeg, LLM, TTS and platform states without presenting unvalidated integrations as green. Queue consumers use bounded retries and retain terminal failures in per-queue dead-letter queues with the original error and idempotency metadata. PostgreSQL backups use custom-format `pg_dump` with 7 daily and 4 weekly retention; restore requires an explicit confirmation flag.
 
 ## Local modes
 
