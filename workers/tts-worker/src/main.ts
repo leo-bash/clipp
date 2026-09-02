@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
-import { createDatabase } from "@shortfactory/database";
+import { createAuditedQueueWorker, createDatabase } from "@shortfactory/database";
 import { CostControlService, createPostgresCostControlLedger, InMemoryCostControlLedger } from "@shortfactory/cost-control";
 import { loadConfig } from "@shortfactory/config";
 import { createLogger } from "@shortfactory/logger";
-import { createQueue, createQueueWorker } from "@shortfactory/queue";
+import { createQueue } from "@shortfactory/queue";
 import { asJobRecord, jobString } from "@shortfactory/shared";
 import { CachedTtsProvider, CostAwareTtsProvider, DeterministicTtsProvider, DisabledTtsProvider, ElevenLabsTtsProvider, type TTSProvider, type TtsCostGate } from "@shortfactory/tts";
 
@@ -15,7 +15,7 @@ const database = createDatabase(config.DATABASE_MODE, config.DATABASE_URL);
 const postgresPool = database.getPostgresPool();
 const costControl = new CostControlService(postgresPool ? createPostgresCostControlLedger(postgresPool) : new InMemoryCostControlLedger(), { monthlyBudgetEur: config.MONTHLY_BUDGET_EUR });
 const provider = new CachedTtsProvider(new CostAwareTtsProvider(createProvider(config.TTS_PROVIDER), createTtsCostGate(costControl, config.TTS_PROVIDER)));
-const worker = createQueueWorker(config.QUEUE_MODE, config.REDIS_URL, "tts", async (job) => {
+const worker = createAuditedQueueWorker(database, config.QUEUE_MODE, config.REDIS_URL, "tts", async (job) => {
   const payload = asJobRecord(job.payload);
   const text = jobString(payload, "text") ?? jobString(payload, "script");
   const language = jobString(payload, "language") ?? "en";

@@ -1,12 +1,14 @@
 import { InstagramMockPublisher, InstagramPublisher, PublishingScheduler, TikTokMockPublisher, TikTokPublisher, YouTubeMockPublisher, YouTubePublisher } from "@shortfactory/platforms";
 import { loadConfig } from "@shortfactory/config";
+import { createAuditedQueueWorker, createDatabase } from "@shortfactory/database";
 import { createLogger } from "@shortfactory/logger";
-import { createQueue, createQueueWorker } from "@shortfactory/queue";
+import { createQueue } from "@shortfactory/queue";
 import { asJobRecord, jobString } from "@shortfactory/shared";
 
 const config = loadConfig();
 const logger = createLogger(config.LOG_LEVEL).child({ worker: "publisher-worker" });
 const queue = createQueue(config.QUEUE_MODE, config.REDIS_URL);
+const database = createDatabase(config.DATABASE_MODE, config.DATABASE_URL);
 const youtube = config.YOUTUBE_CLIENT_ID && config.YOUTUBE_CLIENT_SECRET && config.YOUTUBE_REDIRECT_URI && config.YOUTUBE_ACCESS_TOKEN
   ? new YouTubePublisher({ clientId: config.YOUTUBE_CLIENT_ID, clientSecret: config.YOUTUBE_CLIENT_SECRET, redirectUri: config.YOUTUBE_REDIRECT_URI, accessToken: config.YOUTUBE_ACCESS_TOKEN, refreshToken: config.YOUTUBE_REFRESH_TOKEN || undefined })
   : new YouTubeMockPublisher();
@@ -18,7 +20,7 @@ const instagram = config.INSTAGRAM_ACCESS_TOKEN && config.INSTAGRAM_USER_ID
   : new InstagramMockPublisher();
 const publishers = [youtube, tiktok, instagram];
 const scheduler = new PublishingScheduler(publishers);
-const worker = createQueueWorker(config.QUEUE_MODE, config.REDIS_URL, "publish", async (job) => {
+const worker = createAuditedQueueWorker(database, config.QUEUE_MODE, config.REDIS_URL, "publish", async (job) => {
   const payload = asJobRecord(job.payload);
   const video = asJobRecord(payload?.video) ?? payload;
   const channel = asJobRecord(payload?.channel);
@@ -39,6 +41,7 @@ const shutdown = async (signal: string): Promise<void> => {
   logger.info({ signal }, "publisher worker shutting down");
   await worker.close();
   await queue.close();
+  await database.close();
   process.exit(0);
 };
 

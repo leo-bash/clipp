@@ -19,7 +19,7 @@ The API never performs heavy FFmpeg work. Render work has a separate worker boun
 
 - `apps/api`: HTTP transport, health/readiness composition, and future application services.
 - `apps/dashboard`: Next.js operator dashboard with overview, channels, candidates, videos, review, publishing, analytics, costs, sources, accounts, settings and system-health sections.
-- `workers/*`: process entrypoints and BullMQ consumers; each consumer validates its typed payload, executes the relevant package adapter and forwards durable output to the next queue when the payload is complete.
+- `workers/*`: process entrypoints and BullMQ consumers; each consumer validates its typed payload, records job lifecycle audits, executes the relevant package adapter and forwards durable output to the next queue when the payload is complete.
 - `packages/config`: validated runtime configuration.
 - `packages/logger`: Pino logger with secret redaction defaults.
 - `packages/database`: Drizzle schema, versioned migrations, PostgreSQL repository and in-memory repository.
@@ -55,7 +55,7 @@ The analytics worker collects platform snapshots independently and persists them
 
 The orchestrator worker runs the daily planning boundary. It calculates the active-channel target (default 3 × 6 = 18 unique videos), maintains a two-day ready buffer (36 videos), raises queue priority below one day of ready inventory, and reduces processing above 54 ready videos. It enqueues a deterministic batch job for each pipeline queue using an orchestration-date/channel/queue idempotency key. Redis/BullMQ applies the same key as the broker job ID and provides three attempts with exponential backoff; the in-memory adapter mirrors the contract for tests.
 
-The API applies secure headers, a bounded request body, configurable request rate limiting, optional API-key RBAC, correlation/request response headers, redacted structured logs and a Prometheus-compatible `/metrics` endpoint. `/ready` reports PostgreSQL, Redis, storage, FFmpeg, workers, budget, LLM, TTS and platform states without presenting unvalidated integrations as green. Queue consumers use bounded retries and retain terminal failures in per-queue dead-letter queues with the original error and idempotency metadata. PostgreSQL backups use custom-format `pg_dump` with 7 daily and 4 weekly retention; restore requires an explicit confirmation flag.
+The API applies secure headers, a bounded request body, configurable request rate limiting, optional API-key RBAC, correlation/request response headers, redacted structured logs and a Prometheus-compatible `/metrics` endpoint. `/ready` reports PostgreSQL, Redis, storage, FFmpeg, workers, budget, LLM, TTS and platform states without presenting unvalidated integrations as green. Every worker uses the shared audited processor to persist `jobs_audit` lifecycle records with queue/job/correlation/idempotency/entity metadata. Queue consumers use bounded retries and retain terminal failures in per-queue dead-letter queues with the original error and idempotency metadata. PostgreSQL backups use custom-format `pg_dump` with 7 daily and 4 weekly retention; restore requires an explicit confirmation flag.
 
 ## Local modes
 

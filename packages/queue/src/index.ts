@@ -8,6 +8,8 @@ export interface QueueJob<TPayload> {
   correlationId: string;
   idempotencyKey?: string;
   priority?: number;
+  jobId?: string;
+  attempt?: number;
 }
 
 export interface DeadLetterJob {
@@ -117,7 +119,7 @@ export function createQueueWorker(mode: "mock" | "redis", url: string, queueName
   const worker = new Worker(queueName, async (job) => {
     const payload = job.data as QueueJob<unknown>;
     try {
-      await processor({ ...payload, name: payload.name ?? job.name });
+    await processor({ ...payload, name: payload.name ?? job.name, jobId: job.id ?? undefined, attempt: job.attemptsMade + 1 });
     } catch (error) {
       if (error instanceof AppError && !error.retryable) throw new UnrecoverableError(error.message);
       throw error;

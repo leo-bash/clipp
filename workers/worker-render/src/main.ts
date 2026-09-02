@@ -1,14 +1,16 @@
 import { execFileSync } from "node:child_process";
 import { loadConfig } from "@shortfactory/config";
+import { createAuditedQueueWorker, createDatabase } from "@shortfactory/database";
 import { createLogger } from "@shortfactory/logger";
-import { createQueue, createQueueWorker } from "@shortfactory/queue";
+import { createQueue } from "@shortfactory/queue";
 import { FFmpegRenderer, type RenderPlan } from "@shortfactory/video";
 
 const config = loadConfig();
 const logger = createLogger(config.LOG_LEVEL).child({ worker: "worker-render" });
 const queue = createQueue(config.QUEUE_MODE, config.REDIS_URL);
+const database = createDatabase(config.DATABASE_MODE, config.DATABASE_URL);
 const renderer = new FFmpegRenderer();
-const worker = createQueueWorker(config.QUEUE_MODE, config.REDIS_URL, "render", async (job) => {
+const worker = createAuditedQueueWorker(database, config.QUEUE_MODE, config.REDIS_URL, "render", async (job) => {
   const payload = job.payload as { plan?: RenderPlan };
   if (payload.plan) {
     const result = await renderer.render(payload.plan);
@@ -32,6 +34,7 @@ const shutdown = async (signal: string): Promise<void> => {
   logger.info({ signal }, "render worker shutting down");
   await worker.close();
   await queue.close();
+  await database.close();
   process.exit(0);
 };
 

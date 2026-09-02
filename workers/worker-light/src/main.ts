@@ -1,7 +1,8 @@
 import { AiPipeline, DeterministicAnalysisProvider, DeterministicContentPlanner, ModelRouter } from "@shortfactory/ai";
 import { loadConfig } from "@shortfactory/config";
+import { createAuditedQueueWorker, createDatabase } from "@shortfactory/database";
 import { createLogger } from "@shortfactory/logger";
-import { createQueue, createQueueWorker } from "@shortfactory/queue";
+import { createQueue } from "@shortfactory/queue";
 import { CachedTranscriptionProvider, DeterministicTranscriptionProvider } from "@shortfactory/transcription";
 import { asJobRecord, jobString } from "@shortfactory/shared";
 import type { RenderPlan } from "@shortfactory/video";
@@ -9,9 +10,10 @@ import type { RenderPlan } from "@shortfactory/video";
 const config = loadConfig();
 const logger = createLogger(config.LOG_LEVEL).child({ worker: "worker-light" });
 const queue = createQueue(config.QUEUE_MODE, config.REDIS_URL);
+const database = createDatabase(config.DATABASE_MODE, config.DATABASE_URL);
 const modelRouter = new ModelRouter({ paidApisDisabled: config.STOP_PAID_APIS });
 const aiPipeline = new AiPipeline(new CachedTranscriptionProvider(new DeterministicTranscriptionProvider()), new DeterministicAnalysisProvider(), new DeterministicContentPlanner());
-const worker = createQueueWorker(config.QUEUE_MODE, config.REDIS_URL, "ingestion", async (job) => {
+const worker = createAuditedQueueWorker(database, config.QUEUE_MODE, config.REDIS_URL, "ingestion", async (job) => {
   const payload = asJobRecord(job.payload);
   const candidateId = jobString(payload, "candidateId");
   const mediaHash = jobString(payload, "mediaHash") ?? jobString(payload, "externalId");
@@ -35,6 +37,7 @@ const shutdown = async (signal: string): Promise<void> => {
   logger.info({ signal }, "light worker shutting down");
   await worker.close();
   await queue.close();
+  await database.close();
   process.exit(0);
 };
 

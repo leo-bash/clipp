@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@shortfactory/config": "workspace:*",
+    "@shortfactory/database": "workspace:*",
     "@shortfactory/logger": "workspace:*",
     "@shortfactory/platforms": "workspace:*",
     "@shortfactory/queue": "workspace:*",

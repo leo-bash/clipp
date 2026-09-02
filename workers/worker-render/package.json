@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@shortfactory/config": "workspace:*",
+    "@shortfactory/database": "workspace:*",
     "@shortfactory/logger": "workspace:*",
     "@shortfactory/queue": "workspace:*",
     "@shortfactory/video": "workspace:*"

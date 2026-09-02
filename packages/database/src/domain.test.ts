@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createAuditedProcessor, createDatabase } from "./index.js";
 import { MemoryDomainStore } from "./domain.js";
 
 describe("core domain store", () => {
@@ -23,5 +24,19 @@ describe("core domain store", () => {
     expect((await store.selectCandidate(candidate.id))?.status).toBe("SELECTED");
     const video = await store.createVideo({ channelId: channel.id, candidateId: candidate.id, rightsStatus: "OWNED" });
     expect((await store.approveVideo(video.id))?.status).toBe("APPROVED");
+  });
+
+  it("records queue job lifecycle audits around a processor", async () => {
+    const database = createDatabase("memory", "postgresql://unused");
+    const processor = createAuditedProcessor(database, "analysis", async () => undefined);
+    await processor({ name: "analysis-ready", payload: { candidateId: "not-a-uuid" }, correlationId: "corr-1", idempotencyKey: "analysis:1" });
+    const successful = await database.domain.listJobsAudit({ page: 1, pageSize: 10 });
+    expect(successful.items.map((item) => item.status)).toEqual(["RUNNING", "COMPLETED"]);
+
+    const failing = createAuditedProcessor(database, "analysis", async () => { throw new Error("provider unavailable"); });
+    await expect(failing({ name: "analysis-failed", payload: {}, correlationId: "corr-2", idempotencyKey: "analysis:2" })).rejects.toThrow("provider unavailable");
+    const audits = await database.domain.listJobsAudit({ page: 1, pageSize: 10 });
+    expect(audits.items.map((item) => item.status)).toEqual(["RUNNING", "COMPLETED", "RUNNING", "FAILED"]);
+    await database.close();
   });
 });

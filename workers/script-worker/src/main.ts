@@ -1,7 +1,8 @@
 import { DeterministicContentPlanner } from "@shortfactory/ai";
 import { loadConfig } from "@shortfactory/config";
+import { createAuditedQueueWorker, createDatabase } from "@shortfactory/database";
 import { createLogger } from "@shortfactory/logger";
-import { createQueue, createQueueWorker } from "@shortfactory/queue";
+import { createQueue } from "@shortfactory/queue";
 import { asJobRecord, jobNumber, jobString } from "@shortfactory/shared";
 import { transcriptSchema } from "@shortfactory/transcription";
 import { analysisSchema } from "@shortfactory/ai";
@@ -10,8 +11,9 @@ import type { RenderPlan } from "@shortfactory/video";
 const config = loadConfig();
 const logger = createLogger(config.LOG_LEVEL).child({ worker: "script-worker" });
 const queue = createQueue(config.QUEUE_MODE, config.REDIS_URL);
+const database = createDatabase(config.DATABASE_MODE, config.DATABASE_URL);
 const planner = new DeterministicContentPlanner();
-const worker = createQueueWorker(config.QUEUE_MODE, config.REDIS_URL, "planning", async (job) => {
+const worker = createAuditedQueueWorker(database, config.QUEUE_MODE, config.REDIS_URL, "planning", async (job) => {
   const payload = asJobRecord(job.payload);
   const candidateId = jobString(payload, "candidateId");
   const transcriptResult = payload?.transcript;
@@ -31,6 +33,6 @@ const worker = createQueueWorker(config.QUEUE_MODE, config.REDIS_URL, "planning"
 });
 logger.info({ mode: queue.mode, planner: planner.constructor.name }, "script worker ready");
 
-const shutdown = async (signal: string): Promise<void> => { logger.info({ signal }, "script worker shutting down"); await worker.close(); await queue.close(); process.exit(0); };
+const shutdown = async (signal: string): Promise<void> => { logger.info({ signal }, "script worker shutting down"); await worker.close(); await queue.close(); await database.close(); process.exit(0); };
 process.once("SIGINT", () => void shutdown("SIGINT"));
 process.once("SIGTERM", () => void shutdown("SIGTERM"));

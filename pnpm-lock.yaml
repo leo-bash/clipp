@@ -251,6 +251,9 @@ importers:
       '@shortfactory/config':
         specifier: workspace:*
         version: link:../config
+      '@shortfactory/queue':
+        specifier: workspace:*
+        version: link:../queue
       '@shortfactory/shared':
         specifier: workspace:*
         version: link:../shared
@@ -568,6 +571,9 @@ importers:
       '@shortfactory/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@shortfactory/database':
+        specifier: workspace:*
+        version: link:../../packages/database
       '@shortfactory/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -648,6 +654,9 @@ importers:
       '@shortfactory/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@shortfactory/database':
+        specifier: workspace:*
+        version: link:../../packages/database
       '@shortfactory/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -685,6 +694,9 @@ importers:
       '@shortfactory/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@shortfactory/database':
+        specifier: workspace:*
+        version: link:../../packages/database
       '@shortfactory/discovery':
         specifier: workspace:*
         version: link:../../packages/discovery
@@ -722,6 +734,9 @@ importers:
       '@shortfactory/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@shortfactory/database':
+        specifier: workspace:*
+        version: link:../../packages/database
       '@shortfactory/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -759,6 +774,9 @@ importers:
       '@shortfactory/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@shortfactory/database':
+        specifier: workspace:*
+        version: link:../../packages/database
       '@shortfactory/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -799,6 +817,9 @@ importers:
       '@shortfactory/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@shortfactory/database':
+        specifier: workspace:*
+        version: link:../../packages/database
       '@shortfactory/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -839,6 +860,9 @@ importers:
       '@shortfactory/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@shortfactory/database':
+        specifier: workspace:*
+        version: link:../../packages/database
       '@shortfactory/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -922,6 +946,9 @@ importers:
       '@shortfactory/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@shortfactory/database':
+        specifier: workspace:*
+        version: link:../../packages/database
       '@shortfactory/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -962,6 +989,9 @@ importers:
       '@shortfactory/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@shortfactory/database':
+        specifier: workspace:*
+        version: link:../../packages/database
       '@shortfactory/logger':
         specifier: workspace:*
         version: link:../../packages/logger

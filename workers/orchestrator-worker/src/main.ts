@@ -1,14 +1,16 @@
 import { loadConfig } from "@shortfactory/config";
+import { createAuditedQueueWorker, createDatabase } from "@shortfactory/database";
 import { createLogger } from "@shortfactory/logger";
 import { DailyOrchestrator } from "@shortfactory/orchestrator";
-import { createQueue, createQueueWorker } from "@shortfactory/queue";
+import { createQueue } from "@shortfactory/queue";
 import { asJobRecord, jobNumber, jobString } from "@shortfactory/shared";
 
 const config = loadConfig();
 const logger = createLogger(config.LOG_LEVEL).child({ worker: "orchestrator-worker" });
 const queue = createQueue(config.QUEUE_MODE, config.REDIS_URL);
+const database = createDatabase(config.DATABASE_MODE, config.DATABASE_URL);
 const orchestrator = new DailyOrchestrator(queue);
-const worker = createQueueWorker(config.QUEUE_MODE, config.REDIS_URL, "orchestrator", async (job) => {
+const worker = createAuditedQueueWorker(database, config.QUEUE_MODE, config.REDIS_URL, "orchestrator", async (job) => {
   const payload = asJobRecord(job.payload);
   const channelValues = Array.isArray(payload?.channels) ? payload.channels : [];
   const channels = channelValues.flatMap((value) => {
@@ -29,6 +31,7 @@ const shutdown = async (signal: string): Promise<void> => {
   logger.info({ signal }, "orchestrator worker shutting down");
   await worker.close();
   await queue.close();
+  await database.close();
   process.exit(0);
 };
 

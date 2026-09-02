@@ -73,6 +73,10 @@
 - Decision: Queue consumers process complete payloads locally and enqueue the next-stage result with the original correlation ID and a deterministic idempotency key; incomplete orchestration-only payloads are explicitly deferred.
 - Reason: The daily orchestrator intentionally schedules capacity before a candidate/media identity exists. Treating those capacity jobs as failed would fill the DLQ; silently acknowledging them would hide missing work.
 - Consequences: Discovery, AI, render, publish, analytics and cleanup can be exercised independently with complete payloads, while a repository-backed batch materializer remains the deployment integration point for populating stage-specific payloads.
+
+### Shared worker lifecycle audit
+
+All queue consumers are wrapped by a database-backed audit boundary that records lifecycle events, correlation/idempotency metadata and UUID entity references in `jobs_audit`. Audit write failures are fail-open so an unavailable audit table cannot conceal or transform the original business error; the original queue retry/DLQ policy remains authoritative.
 ### Runtime publisher adapter selection
 
 The publisher worker selects the official YouTube, TikTok or Instagram adapter only when that platform has the credentials required for an API call. Missing credentials keep the local mock adapter active, preserving deterministic development and test behavior without silently attempting browser automation.

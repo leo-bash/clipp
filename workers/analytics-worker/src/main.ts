@@ -1,9 +1,9 @@
 import { AnalyticsCollector, createPostgresAnalyticsSnapshotStore, InMemoryAnalyticsSnapshotStore } from "@shortfactory/analytics";
-import { createDatabase } from "@shortfactory/database";
+import { createAuditedQueueWorker, createDatabase } from "@shortfactory/database";
 import { InstagramMockPublisher, TikTokMockPublisher, YouTubeMockPublisher, type PlatformPublisher } from "@shortfactory/platforms";
 import { loadConfig } from "@shortfactory/config";
 import { createLogger } from "@shortfactory/logger";
-import { createQueue, createQueueWorker } from "@shortfactory/queue";
+import { createQueue } from "@shortfactory/queue";
 import { asJobRecord, jobString } from "@shortfactory/shared";
 
 const config = loadConfig();
@@ -14,7 +14,7 @@ const postgresPool = database.getPostgresPool();
 const analyticsStore = postgresPool ? createPostgresAnalyticsSnapshotStore(postgresPool) : new InMemoryAnalyticsSnapshotStore();
 const collector = new AnalyticsCollector(analyticsStore);
 const publishers: Record<string, PlatformPublisher> = { YOUTUBE: new YouTubeMockPublisher(), TIKTOK: new TikTokMockPublisher(), INSTAGRAM: new InstagramMockPublisher() };
-const worker = createQueueWorker(config.QUEUE_MODE, config.REDIS_URL, "analytics", async (job) => {
+const worker = createAuditedQueueWorker(database, config.QUEUE_MODE, config.REDIS_URL, "analytics", async (job) => {
   const payload = asJobRecord(job.payload);
   const publicationId = jobString(payload, "publicationId");
   const externalPostId = jobString(payload, "externalPostId");

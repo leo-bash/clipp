@@ -1,14 +1,16 @@
 import { loadConfig } from "@shortfactory/config";
+import { createAuditedQueueWorker, createDatabase } from "@shortfactory/database";
 import { createLogger } from "@shortfactory/logger";
-import { createQueue, createQueueWorker } from "@shortfactory/queue";
+import { createQueue } from "@shortfactory/queue";
 import { createConfiguredStorageProvider } from "@shortfactory/storage";
 import { asJobRecord, jobString } from "@shortfactory/shared";
 
 const config = loadConfig();
 const logger = createLogger(config.LOG_LEVEL).child({ worker: "cleanup-worker" });
 const queue = createQueue(config.QUEUE_MODE, config.REDIS_URL);
+const database = createDatabase(config.DATABASE_MODE, config.DATABASE_URL);
 const storage = createConfiguredStorageProvider({ root: config.STORAGE_ROOT, endpoint: config.R2_ENDPOINT, bucket: config.R2_BUCKET, accessKeyId: config.R2_ACCESS_KEY, secretAccessKey: config.R2_SECRET_KEY, region: config.R2_REGION });
-const worker = createQueueWorker(config.QUEUE_MODE, config.REDIS_URL, "cleanup", async (job) => {
+const worker = createAuditedQueueWorker(database, config.QUEUE_MODE, config.REDIS_URL, "cleanup", async (job) => {
   const payload = asJobRecord(job.payload);
   const policies = Array.isArray(payload?.policies) ? payload.policies.filter((value): value is { key: string; expiresAt: Date; legalHold?: boolean; preserve?: boolean } => {
     const policy = asJobRecord(value);
@@ -19,6 +21,6 @@ const worker = createQueueWorker(config.QUEUE_MODE, config.REDIS_URL, "cleanup",
 });
 logger.info({ mode: queue.mode, storage: storage.constructor.name, policy: "legal_hold_and_preserve_aware" }, "cleanup worker ready");
 
-const shutdown = async (signal: string): Promise<void> => { logger.info({ signal }, "cleanup worker shutting down"); await worker.close(); await queue.close(); process.exit(0); };
+const shutdown = async (signal: string): Promise<void> => { logger.info({ signal }, "cleanup worker shutting down"); await worker.close(); await queue.close(); await database.close(); process.exit(0); };
 process.once("SIGINT", () => void shutdown("SIGINT"));
 process.once("SIGTERM", () => void shutdown("SIGTERM"));
