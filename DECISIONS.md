@@ -67,3 +67,9 @@
 - Decision: Workers consume BullMQ jobs through a shared queue boundary, with three attempts and terminal failure retention under a per-queue dead-letter queue.
 - Reason: The orchestrator already emits idempotent jobs; a runnable consumer boundary is required for operational recovery and does not couple workers to the API.
 - Consequences: Production uses Redis/BullMQ; mock mode remains a no-op consumer for deterministic local startup and tests.
+
+## 2026-09-02 — Typed worker payload progression
+
+- Decision: Queue consumers process complete payloads locally and enqueue the next-stage result with the original correlation ID and a deterministic idempotency key; incomplete orchestration-only payloads are explicitly deferred.
+- Reason: The daily orchestrator intentionally schedules capacity before a candidate/media identity exists. Treating those capacity jobs as failed would fill the DLQ; silently acknowledging them would hide missing work.
+- Consequences: Discovery, AI, render, publish, analytics and cleanup can be exercised independently with complete payloads, while a repository-backed batch materializer remains the deployment integration point for populating stage-specific payloads.

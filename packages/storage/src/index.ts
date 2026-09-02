@@ -17,6 +17,7 @@ export interface StorageProvider {
   get(key: string): Promise<Buffer>;
   delete(key: string): Promise<void>;
   head(key: string): Promise<StorageObject | undefined>;
+  cleanupExpired?(policies: RetentionPolicy[], now?: Date): Promise<string[]>;
 }
 
 export interface ConfiguredStorageOptions {

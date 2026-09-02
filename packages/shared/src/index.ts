@@ -9,6 +9,7 @@ export interface OperationalControls {
 export const defaultOperationalControls: OperationalControls = { stopAllPublishing: false, stopRendering: false, stopPaidApis: false };
 
 export * from "./domain.js";
+export * from "./job-payload.js";
 
 export type HealthStatus = "ok" | "degraded" | "down";
 

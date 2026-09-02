@@ -574,6 +574,12 @@ importers:
       '@shortfactory/queue':
         specifier: workspace:*
         version: link:../../packages/queue
+      '@shortfactory/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@shortfactory/transcription':
+        specifier: workspace:*
+        version: link:../../packages/transcription
     devDependencies:
       '@types/node':
         specifier: ^22.15.0
@@ -602,12 +608,21 @@ importers:
       '@shortfactory/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@shortfactory/database':
+        specifier: workspace:*
+        version: link:../../packages/database
       '@shortfactory/logger':
         specifier: workspace:*
         version: link:../../packages/logger
+      '@shortfactory/platforms':
+        specifier: workspace:*
+        version: link:../../packages/platforms
       '@shortfactory/queue':
         specifier: workspace:*
         version: link:../../packages/queue
+      '@shortfactory/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
     devDependencies:
       '@types/node':
         specifier: ^22.15.0
@@ -639,6 +654,9 @@ importers:
       '@shortfactory/queue':
         specifier: workspace:*
         version: link:../../packages/queue
+      '@shortfactory/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@shortfactory/storage':
         specifier: workspace:*
         version: link:../../packages/storage
@@ -676,6 +694,9 @@ importers:
       '@shortfactory/queue':
         specifier: workspace:*
         version: link:../../packages/queue
+      '@shortfactory/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
     devDependencies:
       '@types/node':
         specifier: ^22.15.0
@@ -710,6 +731,9 @@ importers:
       '@shortfactory/queue':
         specifier: workspace:*
         version: link:../../packages/queue
+      '@shortfactory/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
     devDependencies:
       '@types/node':
         specifier: ^22.15.0
@@ -744,6 +768,9 @@ importers:
       '@shortfactory/queue':
         specifier: workspace:*
         version: link:../../packages/queue
+      '@shortfactory/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
     devDependencies:
       '@types/node':
         specifier: ^22.15.0
@@ -778,6 +805,15 @@ importers:
       '@shortfactory/queue':
         specifier: workspace:*
         version: link:../../packages/queue
+      '@shortfactory/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@shortfactory/transcription':
+        specifier: workspace:*
+        version: link:../../packages/transcription
+      '@shortfactory/video':
+        specifier: workspace:*
+        version: link:../../packages/video
     devDependencies:
       '@types/node':
         specifier: ^22.15.0
@@ -809,6 +845,9 @@ importers:
       '@shortfactory/queue':
         specifier: workspace:*
         version: link:../../packages/queue
+      '@shortfactory/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@shortfactory/transcription':
         specifier: workspace:*
         version: link:../../packages/transcription
@@ -846,9 +885,15 @@ importers:
       '@shortfactory/queue':
         specifier: workspace:*
         version: link:../../packages/queue
+      '@shortfactory/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@shortfactory/transcription':
         specifier: workspace:*
         version: link:../../packages/transcription
+      '@shortfactory/video':
+        specifier: workspace:*
+        version: link:../../packages/video
     devDependencies:
       '@types/node':
         specifier: ^22.15.0

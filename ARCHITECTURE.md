@@ -19,7 +19,7 @@ The API never performs heavy FFmpeg work. Render work has a separate worker boun
 
 - `apps/api`: HTTP transport, health/readiness composition, and future application services.
 - `apps/dashboard`: Next.js operator dashboard with overview, channels, candidates, videos, review, publishing, analytics, costs, sources, accounts, settings and system-health sections.
-- `workers/*`: process entrypoints and BullMQ consumers; business logic remains in packages, not worker bootstraps.
+- `workers/*`: process entrypoints and BullMQ consumers; each consumer validates its typed payload, executes the relevant package adapter and forwards durable output to the next queue when the payload is complete.
 - `packages/config`: validated runtime configuration.
 - `packages/logger`: Pino logger with secret redaction defaults.
 - `packages/database`: Drizzle schema, versioned migrations, PostgreSQL repository and in-memory repository.
