@@ -18,6 +18,17 @@ describe("api foundation", () => {
     expect(response.json()).toMatchObject({ status: "ok", service: "api" });
   });
 
+  it("returns request correlation headers and Prometheus-compatible metrics", async () => {
+    const app = await buildApp(loadConfig({}));
+    apps.push(app);
+    const response = await app.server.inject({ method: "GET", url: "/metrics", headers: { "x-correlation-id": "test-correlation" } });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["x-correlation-id"]).toBe("test-correlation");
+    expect(response.headers["x-request-id"]).toBeDefined();
+    expect(response.body).toContain("shortfactory_http_requests_total");
+  });
+
   it("reports explicit degraded local adapters without claiming real dependencies", async () => {
     const app = await buildApp(loadConfig({}));
     apps.push(app);

@@ -2,6 +2,9 @@ import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { AppError, type Platform } from "@shortfactory/shared";
+import type { ProviderRateLimiter } from "./rate-limit.js";
+
+export * from "./rate-limit.js";
 
 export interface PublishInput { videoId: string; title: string; description: string; storageKey?: string; filePath?: string; publicMediaUrl?: string; scheduledAt: string; privacyStatus?: "private" | "unlisted" | "public"; }
 export interface AccountValidation { ok: boolean; detail?: string; }
@@ -301,7 +304,7 @@ export class InMemoryDistributedLock implements DistributedLock {
 }
 
 export class PublishingScheduler {
-  public constructor(private readonly publishers: PlatformPublisher[], private readonly lock: DistributedLock = new InMemoryDistributedLock(), private readonly clock: () => Date = () => new Date()) {}
+  public constructor(private readonly publishers: PlatformPublisher[], private readonly lock: DistributedLock = new InMemoryDistributedLock(), private readonly clock: () => Date = () => new Date(), private readonly rateLimiter?: ProviderRateLimiter) {}
 
   public async publishApprovedVideo(video: SchedulableVideo, channel: SchedulerChannel, metadata: { title: string; description: string; storageKey?: string; filePath?: string; publicMediaUrl?: string; privacyStatus?: PublishInput["privacyStatus"] }, scheduledAt = nextPublishingSlot(this.clock(), channel.timezone, channel.publishingSlots)): Promise<ScheduleResult> {
     if (video.status !== "APPROVED") throw new AppError("VIDEO_NOT_APPROVED", "only approved videos can be scheduled");
@@ -312,6 +315,10 @@ export class PublishingScheduler {
       const results = await Promise.all(this.publishers.map(async (publisher) => {
         const account = await publisher.validateAccount();
         if (!account.ok) return { platform: publisher.platform, status: "FAILED" as const, error: account.detail ?? "account unavailable", scheduledAt } satisfies ScheduledPublication;
+        if (this.rateLimiter) {
+          const decision = await this.rateLimiter.consume(publisher.platform, channel.id);
+          if (!decision.allowed) return { platform: publisher.platform, status: "FAILED" as const, error: `RATE_LIMITED_RETRY_AFTER_${decision.retryAfterMs}`, scheduledAt } satisfies ScheduledPublication;
+        }
         try { return { ...await publisher.publish({ videoId: video.id, title: metadata.title, description: metadata.description, storageKey: metadata.storageKey, filePath: metadata.filePath, publicMediaUrl: metadata.publicMediaUrl, privacyStatus: metadata.privacyStatus, scheduledAt }), scheduledAt }; } catch (error) { return { platform: publisher.platform, status: "FAILED" as const, error: error instanceof Error ? error.message : "publisher failed", scheduledAt }; }
       }));
       return { status: results.every((result) => result.status === "SUCCESS") ? "SUCCESS" : "PARTIAL_FAILURE", scheduledAt, publications: results };

@@ -32,7 +32,7 @@ The API never performs heavy FFmpeg work. Render work has a separate worker boun
 - `packages/transcription`: timestamped transcription contract, deterministic local adapter and cache boundary.
 - `packages/ai`: Zod-validated analysis/content-plan contracts, bounded retries, deterministic adapters and AI cost meter.
 - `packages/tts`: replaceable TTS contract with an explicit disabled adapter.
-- `packages/platforms`: common publishing contract, independent mock publishers and timezone-aware scheduler/lock boundary.
+- `packages/platforms`: common publishing contract, independent mock publishers, timezone-aware scheduler/lock boundary and centralized in-memory/Redis provider rate limiter.
 - `packages/analytics`: snapshot collection, PostgreSQL/in-memory stores, overview aggregation and configurable normalized performance score.
 - `packages/orchestrator`: daily target/buffer calculation, centralized pipeline queue scheduling, distributed-lock seam and idempotent job keys.
 - `packages/shared`: cross-package types and error taxonomy.
@@ -53,6 +53,8 @@ The publisher worker schedules approved videos through `PublishingScheduler`. Yo
 The analytics worker collects platform snapshots independently and persists them through the analytics store. Performance scoring is normalized and configurable; rights remain an absolute gate, so `BLOCKED` content scores zero regardless of performance.
 
 The orchestrator worker runs the daily planning boundary. It calculates the active-channel target (default 3 × 6 = 18 unique videos), maintains a two-day ready buffer (36 videos), raises queue priority below one day of ready inventory, and reduces processing above 54 ready videos. It enqueues a deterministic batch job for each pipeline queue using an orchestration-date/channel/queue idempotency key. Redis/BullMQ applies the same key as the broker job ID and provides three attempts with exponential backoff; the in-memory adapter mirrors the contract for tests.
+
+The API applies secure headers, a bounded request body, configurable request rate limiting, correlation/request response headers, redacted structured logs and a Prometheus-compatible `/metrics` endpoint. Queue failures can be retained in per-queue dead-letter queues with the original error and idempotency metadata. PostgreSQL backups use custom-format `pg_dump` with 7 daily and 4 weekly retention; restore requires an explicit confirmation flag.
 
 ## Local modes
 

@@ -1,5 +1,6 @@
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
+import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance } from "fastify";
 import type { AppConfig } from "@shortfactory/config";
 import { createDatabase, type DatabaseClient } from "@shortfactory/database";
@@ -12,6 +13,7 @@ import type { DependencyHealth, HealthStatus, ReadinessResponse } from "@shortfa
 import { AppError } from "@shortfactory/shared";
 import { registerDomainRoutes, isRequestValidationError } from "./domain-routes.js";
 import { registerAnalyticsRoutes } from "./analytics-routes.js";
+import { MetricsRegistry } from "./metrics.js";
 
 export interface AppDependencies {
   database: DatabaseClient;
@@ -35,6 +37,7 @@ function statusFromChecks(checks: DependencyHealth[]): HealthStatus {
 
 export async function buildApp(config: AppConfig, supplied?: Partial<AppDependencies>): Promise<ShortFactoryApp> {
   const logger = createLogger(config.LOG_LEVEL);
+  const metrics = new MetricsRegistry();
   const database = supplied?.database ?? createDatabase(config.DATABASE_MODE, config.DATABASE_URL);
   const dependencies: AppDependencies = {
     database,
@@ -49,10 +52,21 @@ export async function buildApp(config: AppConfig, supplied?: Partial<AppDependen
   await dependencies.database.domain.ensureSeedData();
   // Fastify's logger generic is intentionally narrower than Pino's runtime logger.
   // The unknown boundary keeps the shared redacting logger without weakening the rest of the app types.
-  const server = Fastify({ loggerInstance: logger }) as unknown as FastifyInstance;
+  const server = Fastify({ loggerInstance: logger, bodyLimit: 1_048_576 }) as unknown as FastifyInstance;
 
   await server.register(helmet);
   await server.register(cors, { origin: config.CORS_ORIGIN });
+  await server.register(rateLimit, { max: config.API_RATE_LIMIT_MAX, timeWindow: config.API_RATE_LIMIT_WINDOW_MS, errorResponseBuilder: () => ({ error: "RATE_LIMITED", message: "request rate limit exceeded" }) });
+  server.addHook("onRequest", async (request, reply) => {
+    const supplied = request.headers["x-correlation-id"];
+    const correlationId = typeof supplied === "string" && supplied.length <= 128 ? supplied : request.id;
+    reply.header("x-request-id", request.id);
+    reply.header("x-correlation-id", correlationId);
+  });
+  server.addHook("onResponse", async (request, reply) => {
+    metrics.recordRequest(reply.statusCode);
+    request.log.info({ requestId: request.id, correlationId: reply.getHeader("x-correlation-id"), method: request.method, url: request.url, statusCode: reply.statusCode }, "request completed");
+  });
   server.setErrorHandler((error, request, reply) => {
     if (isRequestValidationError(error)) return reply.code(400).send({ error: "VALIDATION_ERROR", details: error.issues });
     if (error instanceof Error && error.message === "NOT_FOUND") return reply.code(404).send({ error: "NOT_FOUND" });
@@ -103,6 +117,8 @@ export async function buildApp(config: AppConfig, supplied?: Partial<AppDependen
     version: config.APP_VERSION,
     timestamp: new Date().toISOString()
   }));
+
+  server.get("/metrics", async (_request, reply) => reply.type("text/plain; version=0.0.4").send(metrics.renderPrometheus()));
 
   return {
     server,

@@ -41,3 +41,17 @@
 - Reason: Both tools are mature, available in the Alpine render image, and cover crop, trim, caption burn-in, audio normalization and deterministic QC without a paid media service.
 - Alternatives considered: A hosted media API (adds recurring cost and external dependency), browser-side rendering (not suitable for worker reliability or rights controls).
 - Consequences: Render jobs must use absolute paths from a storage adapter, outputs are accepted only after critical QC passes, and the Docker image includes FFmpeg/FFprobe.
+
+## 2026-09-02 — Redis-coordinated provider rate limiting
+
+- Decision: Enforce publishing limits through one provider/account limiter shared by the scheduler, with Redis coordination in production and an in-memory implementation for tests.
+- Reason: Limits must remain correct across multiple publisher workers and must honor provider retry timing instead of being silently distributed per process.
+- Alternatives considered: Worker-local counters (incorrect across replicas), browser automation or retry loops that bypass provider limits (not permitted).
+- Consequences: A rate-limited publication returns `retryAfterMs`; callers reschedule it. Redis is required for distributed production operation.
+
+## 2026-09-02 — Explicit operational safety controls
+
+- Decision: Add request limits, secure headers, correlation/audit logs, metrics, dead-letter retention and explicit backup/restore scripts before declaring the system production-ready.
+- Reason: A resumable pipeline needs observable failures and recoverable state; destructive restore operations must require an explicit confirmation flag.
+- Alternatives considered: Logging only to stdout without correlation, dropping permanent failures, relying on unversioned database snapshots.
+- Consequences: Operators use `docs/RUNBOOK.md`; backup storage and scheduler/cron execution remain deployment responsibilities.

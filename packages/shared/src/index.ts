@@ -73,6 +73,51 @@ export class RenderError extends AppError {
   }
 }
 
+export class RateLimitError extends AppError {
+  public readonly retryAfterMs?: number;
+
+  public constructor(message = "provider rate limit exceeded", retryAfterMs?: number) {
+    super("RATE_LIMITED", message, true);
+    this.name = "RateLimitError";
+    this.retryAfterMs = retryAfterMs;
+  }
+}
+
+export class AuthenticationError extends AppError {
+  public constructor(message = "authentication failed") {
+    super("AUTHENTICATION_ERROR", message);
+    this.name = "AuthenticationError";
+  }
+}
+
+export class QuotaExceededError extends AppError {
+  public constructor(message = "provider quota exceeded") {
+    super("QUOTA_EXCEEDED", message);
+    this.name = "QuotaExceededError";
+  }
+}
+
+export class UploadError extends AppError {
+  public constructor(message: string, retryable = true) {
+    super("UPLOAD_ERROR", message, retryable);
+    this.name = "UploadError";
+  }
+}
+
+export class TransientError extends AppError {
+  public constructor(message: string) {
+    super("TRANSIENT_ERROR", message, true);
+    this.name = "TransientError";
+  }
+}
+
+export class PermanentError extends AppError {
+  public constructor(message: string) {
+    super("PERMANENT_ERROR", message);
+    this.name = "PermanentError";
+  }
+}
+
 import { randomUUID } from "node:crypto";
 
 export function buildCorrelationId(): string {

@@ -174,11 +174,14 @@ PHASE 4 acceptance criteria are satisfied by unit/API coverage. Rights decisions
 - [x] Official Instagram publishing boundary (Phase 11).
 - [x] Analytics snapshots and scoring (Phase 12).
 - [x] Daily orchestrator and buffer management (Phase 13).
+- [x] Production hardening, backup scripts, monitoring, rate limiting, DLQ and runbook (Phase 14).
 
 ## Phase 14 — production hardening
 
-- [ ] Add centralized provider rate limiting and Retry-After handling.
-- [ ] Add security controls, audit logging and request limits.
-- [ ] Add dead-letter queue handling and operator inspection endpoints.
-- [ ] Add daily PostgreSQL backup/restore scripts with retention policy.
-- [ ] Add monitoring/runbook and production readiness documentation.
+- [x] Add centralized provider rate limiting and Retry-After handling.
+- [x] Add security controls, audit logging and request limits.
+- [x] Add dead-letter queue handling and retained failure metadata.
+- [x] Add daily PostgreSQL backup/restore scripts with 7 daily/4 weekly retention policy.
+- [x] Add Prometheus-compatible metrics, CI and production readiness runbook.
+
+PHASE 14 acceptance criteria are satisfied by the API/platform/queue tests and the full local check suite. Backup/restore and Redis/PostgreSQL production paths are configured but cannot be live-executed here because Docker is unavailable.

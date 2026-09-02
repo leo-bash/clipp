@@ -17,7 +17,7 @@
 | 11 | Official Instagram adapter | Completed |
 | 12 | Analytics snapshots and performance scoring | Completed |
 | 13 | Daily orchestrator, buffers and idempotent queue scheduling | Completed |
-| 14 | Production hardening: security, backups, monitoring, rate limiting, DLQ and runbook | Pending |
+| 14 | Production hardening: security, backups, monitoring, rate limiting, DLQ and runbook | Completed |
 
 ## Phase 1 exit criteria
 
@@ -83,4 +83,8 @@ Phase 13 verification
 
 `@shortfactory/orchestrator` calculates the active-channel daily target, defaulting to 18 videos for three channels, maintains a 36-video ready buffer, marks a run HIGH priority below 18 ready videos, and switches to REDUCE above 54. It schedules all twelve pipeline queues with deterministic idempotency keys, queue retries and exponential backoff. Tests cover target calculation, all queue stages, retry-safe re-entry and upper-buffer throttling. The orchestrator worker is included in the Compose topology.
 
-The next milestone is Phase 14 production hardening.
+## Phase 14 verification
+
+API hardening adds Helmet, CORS, request body limits, configurable Fastify request rate limiting, request/correlation headers, redacted structured audit logs and a Prometheus-compatible metrics endpoint. Provider publishing uses a centralized per-provider/account limiter with an in-memory test adapter and Redis/Lua coordination adapter, including `retryAfterMs`. BullMQ and the mock queue expose dead-letter retention. PostgreSQL backup and explicitly confirmed restore scripts implement 7 daily/4 weekly retention. CI runs the full check suite, and `docs/RUNBOOK.md` documents startup, readiness, backups, DLQ handling and incidents.
+
+All implementation phases are complete. The only environment-level verification still unavailable is live Docker Compose execution because Docker is not installed on this host.

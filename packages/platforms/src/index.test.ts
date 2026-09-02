@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { InstagramMockPublisher, InstagramPublisher, InMemoryDistributedLock, PublishingScheduler, TikTokMockPublisher, TikTokPublisher, YouTubeMockPublisher, YouTubePublisher } from "./index.js";
+import { InMemoryProviderRateLimiter } from "./rate-limit.js";
 
 afterEach(() => { vi.unstubAllGlobals(); });
 
@@ -22,6 +23,15 @@ describe("mock publishing", () => {
     expect(result.status).toBe("PARTIAL_FAILURE");
     expect(result.publications.filter((publication) => publication.status === "SUCCESS")).toHaveLength(2);
     expect(result.publications.find((publication) => publication.platform === "TIKTOK")?.status).toBe("FAILED");
+  });
+
+  it("applies one centralized provider/account limiter before publishing", async () => {
+    const limiter = new InMemoryProviderRateLimiter({ maxRequests: 1, windowMs: 60_000 });
+    const scheduler = new PublishingScheduler([new YouTubeMockPublisher()], new InMemoryDistributedLock(), () => new Date("2026-09-02T08:00:00.000Z"), limiter);
+    const video = { id: "video-rate-limit", status: "APPROVED" as const, rightsStatus: "OWNED" as const };
+    const channel = { id: "channel-rate-limit", timezone: "Europe/Rome", publishingSlots: ["09:00"] };
+    await expect(scheduler.publishApprovedVideo(video, channel, { title: "First", description: "" })).resolves.toMatchObject({ status: "SUCCESS" });
+    await expect(scheduler.publishApprovedVideo({ ...video, id: "video-rate-limit-2" }, channel, { title: "Second", description: "" })).resolves.toMatchObject({ status: "PARTIAL_FAILURE", publications: [expect.objectContaining({ error: expect.stringContaining("RATE_LIMITED") })] });
   });
 
   it("uses the official YouTube resumable upload flow with private default", async () => {

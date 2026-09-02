@@ -8,6 +8,8 @@ export const configSchema = z.object({
   LOG_LEVEL: z.enum(["trace", "debug", "info", "warn", "error", "fatal", "silent"]).default("info"),
   API_HOST: z.string().default("0.0.0.0"),
   API_PORT: z.coerce.number().int().min(1).max(65535).default(4000),
+  API_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(120),
+  API_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   CORS_ORIGIN: z.string().default("http://localhost:3000"),
   DATABASE_MODE: z.enum(["memory", "postgres"]).default("memory"),
   DATABASE_URL: z.string().url().default("postgresql://shortfactory:shortfactory@localhost:5432/shortfactory"),
