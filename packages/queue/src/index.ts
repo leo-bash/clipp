@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { Queue, UnrecoverableError, Worker } from "bullmq";
 import IORedis from "ioredis";
 import { AppError, type ServiceMode } from "@shortfactory/shared";
@@ -73,7 +74,7 @@ class RedisQueue implements QueueClient {
   }
 
   public async ping(): Promise<void> {
-    await this.connection.connect();
+    if (this.connection.status === "wait") await this.connection.connect();
     await this.connection.ping();
   }
 
@@ -81,7 +82,7 @@ class RedisQueue implements QueueClient {
     const queue = this.queues.get(queueName) ?? new Queue(queueName, { connection: this.connection });
     this.queues.set(queueName, queue);
     await queue.add(job.name, job, {
-      jobId: job.idempotencyKey ?? `${job.name}:${job.correlationId}`,
+      jobId: stableJobId(job.idempotencyKey ?? `${job.name}:${job.correlationId}`),
       attempts: 3,
       backoff: { type: "exponential", delay: 1000 },
       ...(job.priority === undefined ? {} : { priority: job.priority }),
@@ -94,7 +95,7 @@ class RedisQueue implements QueueClient {
     const queueName = `${deadLetter.originalQueue}.dead-letter`;
     const queue = this.deadLetterQueues.get(queueName) ?? new Queue(queueName, { connection: this.connection });
     this.deadLetterQueues.set(queueName, queue);
-    await queue.add(deadLetter.job.name, { ...deadLetter, failedAt: deadLetter.failedAt }, { jobId: `dlq:${deadLetter.job.idempotencyKey ?? deadLetter.job.correlationId}`, removeOnComplete: false, removeOnFail: false });
+  await queue.add(deadLetter.job.name, { ...deadLetter, failedAt: deadLetter.failedAt }, { jobId: stableJobId(`dlq:${deadLetter.originalQueue}:${deadLetter.job.idempotencyKey ?? deadLetter.job.correlationId}`), removeOnComplete: false, removeOnFail: false });
   }
 
   public async close(): Promise<void> {
@@ -128,7 +129,7 @@ export function createQueueWorker(mode: "mock" | "redis", url: string, queueName
   worker.on("failed", (job, error) => {
     const permanent = error instanceof UnrecoverableError || error?.name === "UnrecoverableError";
     if (!job || (!permanent && job.attemptsMade < 3)) return;
-    void deadLetterQueue.add("dead-letter", { originalQueue: queueName, job: job.data, error: error instanceof Error ? error.message : "job failed", failedAt: new Date().toISOString() }, { jobId: `dlq:${queueName}:${job.id ?? job.name}`, removeOnComplete: false, removeOnFail: false });
+    void deadLetterQueue.add("dead-letter", { originalQueue: queueName, job: job.data, error: error instanceof Error ? error.message : "job failed", failedAt: new Date().toISOString() }, { jobId: stableJobId(`dlq:${queueName}:${job.id ?? job.name}`), removeOnComplete: false, removeOnFail: false });
   });
   worker.on("error", () => undefined);
   return new RedisQueueWorker(worker, deadLetterQueue);
@@ -136,4 +137,8 @@ export function createQueueWorker(mode: "mock" | "redis", url: string, queueName
 
 export function createQueue(mode: "mock" | "redis", url: string): QueueClient {
   return mode === "redis" ? new RedisQueue(url) : new MockQueue();
+}
+
+function stableJobId(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
 }

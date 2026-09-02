@@ -206,7 +206,7 @@ PHASE 14 acceptance criteria are satisfied by the API/platform/queue tests and t
 - [x] Replace dashboard Settings/Accounts/Analytics/Costs placeholders with API-backed operator views and admin kill-switch controls.
 - [x] Configure every Compose worker with PostgreSQL, Redis and migration-complete dependencies for durable audits.
 - [x] Add CI-gated PostgreSQL and Redis integration smoke tests against the configured service containers.
-- [ ] Run Docker Compose, PostgreSQL migration/seed and Redis integration on a host with Docker.
+- [x] Run Docker Compose, PostgreSQL migration/seed and Redis integration on a host with Docker.
 - [x] Add a dedicated typed TTS queue consumer with deterministic cache-first local behavior.
 
-PHASE 15 remains open until runtime integration checks are complete.
+PHASE 15 runtime integration checks are complete locally with Colima/Docker; provider credentials and remote object storage remain intentionally runtime-configured and are reported degraded until supplied.

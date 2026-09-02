@@ -96,3 +96,7 @@ Video experiment fields are represented by a shared TypeScript contract and pers
 ### API-backed operator configuration
 
 The dashboard reads analytics, costs and platform accounts through API resources and writes channel production settings through the validated channel endpoint. Global kill switches have a separate admin-only runtime endpoint; they intentionally do not persist across restarts, so deployment configuration remains the durable safety default and secrets never enter the browser or database.
+
+### Docker runtime verification on macOS
+
+The Compose stack was verified with Docker running under Colima on macOS ARM after pinning the application image to Node `22.20.0-alpine`. Node 20 was rejected because pnpm 11 failed during the image install with a dynamic-import runtime error. Redis readiness probes are idempotent and BullMQ job IDs are SHA-256 derived because BullMQ rejects colon-containing custom IDs used by the pipeline's readable idempotency keys.

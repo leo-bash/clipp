@@ -12,4 +12,11 @@ describe("queue foundation", () => {
     expect(queue.getDeadLetters?.()).toHaveLength(1);
     await queue.close();
   });
+
+  it.skipIf(process.env.RUN_REDIS_INTEGRATION !== "1")("keeps a Redis readiness probe idempotent after the first connection", async () => {
+    const queue = createQueue("redis", process.env.REDIS_URL ?? "redis://localhost:6379");
+    await queue.ping();
+    await expect(queue.ping()).resolves.toBeUndefined();
+    await queue.close();
+  }, 10_000);
 });
