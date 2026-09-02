@@ -67,6 +67,11 @@ export async function buildApp(config: AppConfig, supplied?: Partial<AppDependen
   await server.register(cors, { origin: config.CORS_ORIGIN });
   await server.register(rateLimit, { max: config.API_RATE_LIMIT_MAX, timeWindow: config.API_RATE_LIMIT_WINDOW_MS, errorResponseBuilder: () => ({ error: "RATE_LIMITED", message: "request rate limit exceeded" }) });
   server.addHook("onRequest", async (request, reply) => {
+    if (config.AUTH_MODE === "api-key" && request.method !== "OPTIONS" && !request.url.startsWith("/health") && !request.url.startsWith("/ready") && !request.url.startsWith("/metrics")) {
+      const role = roleForApiKey(request.headers["x-api-key"], config);
+      if (!role) return reply.code(401).send({ error: "UNAUTHENTICATED", message: "a configured x-api-key is required" });
+      if (request.method !== "GET" && request.method !== "HEAD" && role === "VIEWER") return reply.code(403).send({ error: "FORBIDDEN", message: "viewer role cannot mutate resources" });
+    }
     const supplied = request.headers["x-correlation-id"];
     const correlationId = typeof supplied === "string" && supplied.length <= 128 ? supplied : request.id;
     reply.header("x-request-id", request.id);
@@ -165,4 +170,12 @@ function dependenciesLedger(database: DatabaseClient) {
 function createAnalyticsStore(database: DatabaseClient): AnalyticsSnapshotStore {
   const pool = database.getPostgresPool();
   return pool ? createPostgresAnalyticsSnapshotStore(pool) : new InMemoryAnalyticsSnapshotStore();
+}
+
+function roleForApiKey(value: string | string[] | undefined, config: AppConfig): "ADMIN" | "EDITOR" | "VIEWER" | undefined {
+  if (typeof value !== "string" || value.length < 16) return undefined;
+  if (config.ADMIN_API_KEY && value === config.ADMIN_API_KEY) return "ADMIN";
+  if (config.EDITOR_API_KEY && value === config.EDITOR_API_KEY) return "EDITOR";
+  if (config.VIEWER_API_KEY && value === config.VIEWER_API_KEY) return "VIEWER";
+  return undefined;
 }

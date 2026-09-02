@@ -76,3 +76,7 @@
 ### Runtime publisher adapter selection
 
 The publisher worker selects the official YouTube, TikTok or Instagram adapter only when that platform has the credentials required for an API call. Missing credentials keep the local mock adapter active, preserving deterministic development and test behavior without silently attempting browser automation.
+
+### Optional API-key RBAC boundary
+
+The API supports an explicit `AUTH_MODE=api-key` deployment mode with separate ADMIN, EDITOR and VIEWER runtime keys. Local development remains disabled by default, while production deployments can enforce read/write separation without introducing browser-stored secrets or cookie-based sessions.

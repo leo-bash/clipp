@@ -33,6 +33,20 @@ describe("api foundation", () => {
     expect(response.body).toContain("shortfactory_http_requests_total");
   });
 
+  it("enforces configured API-key RBAC while keeping health endpoints public", async () => {
+    const app = await buildApp(loadConfig({ AUTH_MODE: "api-key", ADMIN_API_KEY: "admin-key-123456789", VIEWER_API_KEY: "viewer-key-123456789" }));
+    apps.push(app);
+    const health = await app.server.inject({ method: "GET", url: "/health" });
+    const unauthenticated = await app.server.inject({ method: "GET", url: "/api/v1/channels" });
+    const authenticated = await app.server.inject({ method: "GET", url: "/api/v1/channels", headers: { "x-api-key": "admin-key-123456789" } });
+    const viewerMutation = await app.server.inject({ method: "POST", url: "/api/v1/channels", headers: { "x-api-key": "viewer-key-123456789" }, payload: {} });
+
+    expect(health.statusCode).toBe(200);
+    expect(unauthenticated.statusCode).toBe(401);
+    expect(authenticated.statusCode).toBe(200);
+    expect(viewerMutation.statusCode).toBe(403);
+  });
+
   it("reports explicit degraded local adapters without claiming real dependencies", async () => {
     const app = await buildApp(loadConfig({}));
     apps.push(app);
