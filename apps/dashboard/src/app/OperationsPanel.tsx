@@ -1,15 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Candidate, Channel, Platform, Publication, RightsStatus, Source, Video } from "@shortfactory/shared";
+import type { Candidate, Channel, DependencyHealth, Platform, Publication, RightsStatus, Source, Video } from "@shortfactory/shared";
 
-interface OperationsPanelProps { channels: Channel[]; }
-const sections = ["Overview", "Channels", "Candidates", "Videos", "Review Queue", "Publishing", "Analytics", "Costs", "Sources", "Accounts", "Settings", "System Health"] as const;
+interface OperationsPanelProps { channels: Channel[]; health: DependencyHealth[]; }
+const sections = ["First Run", "Overview", "Channels", "Candidates", "Videos", "Review Queue", "Publishing", "Analytics", "Costs", "Sources", "Accounts", "Settings", "System Health"] as const;
 const platforms: Platform[] = ["YOUTUBE", "TIKTOK", "INSTAGRAM"];
 const rightsStatuses: RightsStatus[] = ["OWNED", "LICENSED", "CREATIVE_COMMONS", "PUBLIC_DOMAIN", "COMMENTARY_REVIEW", "UNKNOWN", "BLOCKED"];
 
-export default function OperationsPanel({ channels }: OperationsPanelProps): React.JSX.Element {
-  const [active, setActive] = useState<(typeof sections)[number]>("Overview");
+export default function OperationsPanel({ channels, health }: OperationsPanelProps): React.JSX.Element {
+  const [active, setActive] = useState<(typeof sections)[number]>("First Run");
   const [sourceUrl, setSourceUrl] = useState("");
   const [sourceName, setSourceName] = useState("");
   const [sourceRights, setSourceRights] = useState<RightsStatus>("UNKNOWN");
@@ -89,12 +89,28 @@ export default function OperationsPanel({ channels }: OperationsPanelProps): Rea
     if (publication) setPublications((items) => [publication, ...items]);
   }
 
+  const dependency = (name: string): DependencyHealth | undefined => health.find((item) => item.name.toLowerCase() === name.toLowerCase());
+  const ready = (name: string): boolean => dependency(name)?.status === "ok";
+  const setupItems = [
+    { step: "Create Admin", ready: false, detail: "Authentication provider is not configured in this MVP boundary." },
+    { step: "Configure Storage", ready: ready("storage"), detail: dependency("storage")?.detail ?? "Storage status unavailable." },
+    { step: "Configure AI", ready: ready("llm"), detail: dependency("llm")?.detail ?? "LLM status unavailable." },
+    { step: "Configure Budget", ready: ready("budget"), detail: dependency("budget")?.detail ?? "Budget status unavailable." },
+    { step: "Create Channels", ready: channels.length >= 3, detail: `${channels.length}/3 configured channels.` },
+    { step: "Connect YouTube", ready: ready("platforms"), detail: "Credentials are validated at publish time." },
+    { step: "Connect TikTok", ready: ready("platforms"), detail: "Credentials are validated at publish time." },
+    { step: "Connect Instagram", ready: ready("platforms"), detail: "Credentials are validated at publish time." },
+    { step: "Add Sources", ready: sources.length > 0, detail: `${sources.length} source(s) configured.` },
+    { step: "Run Test Pipeline", ready: videos.some((video) => video.storageKey), detail: "Run it from Candidates to create a reviewable preview." }
+  ];
+
   return <section className="operations" aria-label="operations workspace">
     <nav className="section-tabs" aria-label="dashboard sections">
       {sections.map((section) => <button className={section === active ? "active" : ""} key={section} type="button" onClick={() => setActive(section)}>{section}</button>)}
     </nav>
     <div className="operations-panel">
       <p className="eyebrow">{active.toUpperCase()}</p>
+      {active === "First Run" ? <div className="wizard" aria-label="first run wizard"><p className="muted">Complete the setup in order. A degraded or unvalidated integration is never shown as ready.</p>{setupItems.map((item, index) => <article className="wizard-item" key={item.step}><span className={`status-dot ${item.ready ? "ok" : "degraded"}`} aria-hidden="true" /><div><strong>{index + 1}. {item.step}</strong><small>{item.ready ? "READY" : "NOT READY"} · {item.detail}</small></div></article>)}</div> : null}
       {active === "Overview" ? <div className="overview-grid"><strong>{channels.length} channels configured</strong><span>{candidates.length} candidates · {videos.length} videos · {publications.length} publications</span><span>Manual review is required before publishing.</span><span>Pipeline order: discover → ingest → transcribe → analyze → plan → TTS → render → QC → review → publish → analytics → cleanup.</span></div> : null}
       {active === "Channels" ? <div className="stack-list">{channels.map((channel) => <div className="channel-row" key={channel.id}><span>{channel.name}</span><small>{channel.timezone} · {channel.videosPerDay}/day · {channel.status}</small></div>)}</div> : null}
       {active === "Sources" ? <><form className="inline-form" onSubmit={(event) => void createSource(event)}><input required placeholder="Source name" value={sourceName} onChange={(event) => setSourceName((event.currentTarget as unknown as { value: string }).value)} /><input required type="url" placeholder="https://example.com" value={sourceUrl} onChange={(event) => setSourceUrl((event.currentTarget as unknown as { value: string }).value)} /><select value={sourceRights} onChange={(event) => setSourceRights((event.currentTarget as unknown as { value: RightsStatus }).value)}>{rightsStatuses.map((status) => <option key={status} value={status}>{status}</option>)}</select><input placeholder="keywords, comma separated" value={sourceKeywords} onChange={(event) => setSourceKeywords((event.currentTarget as unknown as { value: string }).value)} /><button type="submit">Add manual source</button></form><div className="entity-list">{sources.map((source) => <article className="entity-card" key={source.id}><strong>{source.name}</strong><small>{source.rightsStatus} · {source.enabled ? "enabled" : "disabled"} · {(source.keywords ?? []).join(", ") || "no keywords"}</small><div className="review-actions"><button type="button" onClick={() => void toggleSource(source)}>{source.enabled ? "Disable" : "Enable"}</button></div></article>)}</div></> : null}

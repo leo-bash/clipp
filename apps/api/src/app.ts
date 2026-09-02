@@ -112,6 +112,7 @@ export async function buildApp(config: AppConfig, supplied?: Partial<AppDependen
       Promise.resolve({ name: "llm", status: "degraded", mode: "mock", detail: "deterministic adapter active; configure a paid provider before production" } as const),
       Promise.resolve({ name: "tts", status: "degraded", mode: "mock", detail: "TTS is disabled until a provider is configured" } as const),
       Promise.resolve({ name: "workers", status: "degraded", mode: dependencies.queue.mode, detail: "worker liveness is supervised by queue consumers; inspect worker logs" } as const),
+      Promise.resolve({ name: "budget", status: "ok", mode: "mock", detail: `monthly budget €${config.MONTHLY_BUDGET_EUR.toFixed(2)}` } as const),
       Promise.resolve({ name: "platforms", status: "degraded", mode: "mock", detail: "platform credentials are validated at publish time" } as const)
     ]);
     const status = statusFromChecks(checks);

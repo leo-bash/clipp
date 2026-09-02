@@ -43,7 +43,9 @@ describe("api foundation", () => {
     expect(body.status).toBe("degraded");
     expect(body.dependencies).toEqual(expect.arrayContaining([
       expect.objectContaining({ mode: "memory", status: "degraded" }),
-      expect.objectContaining({ mode: "mock", status: "degraded" })
+      expect.objectContaining({ mode: "mock", status: "degraded" }),
+      expect.objectContaining({ name: "workers", status: "degraded" }),
+      expect.objectContaining({ name: "budget", status: "ok" })
     ]));
   });
 

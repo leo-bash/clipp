@@ -47,6 +47,10 @@ h1 { max-width: 680px; font-size: clamp(2.8rem, 8vw, 6rem); line-height: .95; ma
 .operations-panel { background: var(--panel); border: 1px solid #2c3038; border-radius: 12px; display: grid; gap: 1rem; padding: 1.2rem; }
 .overview-grid { display: grid; gap: .6rem; }
 .overview-grid span { color: var(--muted); line-height: 1.5; }
+.wizard { display: grid; gap: .65rem; }
+.wizard-item { align-items: flex-start; background: #15171c; border: 1px solid #2c3038; border-radius: 9px; display: flex; gap: .7rem; padding: .75rem; }
+.wizard-item div { display: grid; gap: .25rem; }
+.wizard-item small { color: var(--muted); line-height: 1.4; }
 .inline-form { display: flex; flex-wrap: wrap; gap: .6rem; }
 .inline-form input, .inline-form select { background: #101114; border: 1px solid #353a44; border-radius: 7px; color: var(--text); padding: .6rem; }
 .inline-form input { flex: 1 1 220px; }

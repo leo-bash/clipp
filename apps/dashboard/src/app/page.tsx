@@ -103,7 +103,7 @@ export default async function Home(): Promise<React.JSX.Element> {
           </div>
         )}
       </section>
-      <OperationsPanel channels={channels} />
+      <OperationsPanel channels={channels} health={health} />
       <aside className="rights-note" aria-label="rights safety notice">
         <strong>Rights safety active</strong>
         <span>Blocked assets cannot render; unknown and commentary assets require manual review.</span>
