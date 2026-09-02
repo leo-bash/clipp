@@ -1,5 +1,9 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { loadConfig } from "@shortfactory/config";
+import { LocalStorageProvider } from "@shortfactory/storage";
 import { buildApp } from "./app.js";
 
 const apps: Array<Awaited<ReturnType<typeof buildApp>>> = [];
@@ -98,11 +102,36 @@ describe("api foundation", () => {
     const edited = await app.server.inject({ method: "PATCH", url: `/api/v1/videos/${videoId}`, payload: { metadata: { title: "Edited" } } });
     const rerendered = await app.server.inject({ method: "POST", url: `/api/v1/videos/${videoId}/rerender` });
     const approved = await app.server.inject({ method: "POST", url: `/api/v1/videos/${videoId}/approve` });
+    const scheduled = await app.server.inject({ method: "POST", url: "/api/v1/publications", payload: { videoId, platform: "YOUTUBE" } });
 
     expect(edited.statusCode).toBe(200);
     expect(edited.json<{ metadata: Record<string, string> }>().metadata.title).toBe("Edited");
     expect(rerendered.json<{ status: string; renderVersion: number }>()).toMatchObject({ status: "RENDERING", renderVersion: 2 });
     expect(approved.json<{ status: string }>().status).toBe("APPROVED");
+    expect(scheduled.statusCode).toBe(200);
+  });
+
+  it("runs the one-click test pipeline and serves its stored preview", async () => {
+    const storageRoot = await mkdtemp(path.join(os.tmpdir(), "shortfactory-api-test-storage-"));
+    try {
+      const app = await buildApp(loadConfig({}), { storage: new LocalStorageProvider(storageRoot) });
+      apps.push(app);
+      const candidates = await app.server.inject({ method: "GET", url: "/api/v1/candidates?pageSize=1" });
+      const candidateId = candidates.json<{ items: Array<{ id: string }> }>().items[0]?.id;
+      if (!candidateId) throw new Error("seed candidate missing");
+      const pipeline = await app.server.inject({ method: "POST", url: "/api/v1/pipeline/test", payload: { candidateId } });
+      const result = pipeline.json<{ video: { status: string; storageKey?: string; thumbnailKey?: string }; previewUrl?: string }>();
+      const preview = result.previewUrl ? await app.server.inject({ method: "GET", url: `/api/v1${result.previewUrl}` }) : undefined;
+
+      expect(pipeline.statusCode).toBe(200);
+      expect(result.video).toMatchObject({ status: "READY_FOR_REVIEW" });
+      expect(result.video.storageKey).toBeDefined();
+      expect(result.video.thumbnailKey).toBeDefined();
+      expect(preview?.statusCode).toBe(200);
+      expect(preview?.headers["content-type"]).toContain("video/mp4");
+    } finally {
+      await rm(storageRoot, { recursive: true, force: true });
+    }
   });
 
   it("exposes an analytics overview without direct dashboard database access", async () => {

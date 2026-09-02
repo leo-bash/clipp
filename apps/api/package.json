@@ -18,10 +18,13 @@
     "@shortfactory/config": "workspace:*",
     "@shortfactory/cost-control": "workspace:*",
     "@shortfactory/database": "workspace:*",
+    "@shortfactory/discovery": "workspace:*",
     "@shortfactory/logger": "workspace:*",
     "@shortfactory/queue": "workspace:*",
+    "@shortfactory/storage": "workspace:*",
     "@shortfactory/rights": "workspace:*",
     "@shortfactory/shared": "workspace:*",
+    "@shortfactory/video": "workspace:*",
     "fastify": "^5.5.0",
     "zod": "^3.25.76"
   },

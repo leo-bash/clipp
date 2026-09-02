@@ -44,6 +44,9 @@ importers:
       '@shortfactory/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@shortfactory/discovery':
+        specifier: workspace:*
+        version: link:../../packages/discovery
       '@shortfactory/logger':
         specifier: workspace:*
         version: link:../../packages/logger
@@ -56,6 +59,12 @@ importers:
       '@shortfactory/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@shortfactory/storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
+      '@shortfactory/video':
+        specifier: workspace:*
+        version: link:../../packages/video
       fastify:
         specifier: ^5.5.0
         version: 5.12.1

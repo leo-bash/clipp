@@ -16,6 +16,8 @@ import { promisify } from "node:util";
 import { registerDomainRoutes, isRequestValidationError } from "./domain-routes.js";
 import { registerAnalyticsRoutes } from "./analytics-routes.js";
 import { MetricsRegistry } from "./metrics.js";
+import { createConfiguredStorageProvider, type StorageProvider } from "@shortfactory/storage";
+import { registerPipelineRoutes } from "./pipeline-routes.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -25,6 +27,7 @@ export interface AppDependencies {
   costControl: CostControlServiceType;
   rightsGate: RightsGate;
   analyticsStore: AnalyticsSnapshotStore;
+  storage: StorageProvider;
 }
 
 export interface ShortFactoryApp {
@@ -52,7 +55,8 @@ export async function buildApp(config: AppConfig, supplied?: Partial<AppDependen
       { monthlyBudgetEur: config.MONTHLY_BUDGET_EUR }
     ),
     rightsGate: supplied?.rightsGate ?? new RightsGate(),
-    analyticsStore: supplied?.analyticsStore ?? createAnalyticsStore(database)
+    analyticsStore: supplied?.analyticsStore ?? createAnalyticsStore(database),
+    storage: supplied?.storage ?? createConfiguredStorageProvider({ root: config.STORAGE_ROOT, endpoint: config.R2_ENDPOINT, bucket: config.R2_BUCKET, accessKeyId: config.R2_ACCESS_KEY, secretAccessKey: config.R2_SECRET_KEY, region: config.R2_REGION })
   };
   await dependencies.database.domain.ensureSeedData();
   // Fastify's logger generic is intentionally narrower than Pino's runtime logger.
@@ -84,6 +88,7 @@ export async function buildApp(config: AppConfig, supplied?: Partial<AppDependen
   await registerDomainRoutes(server, dependencies.database.domain, dependencies.costControl, dependencies.rightsGate, "/api/v1", controls);
   await registerAnalyticsRoutes(server, dependencies.analyticsStore);
   await registerAnalyticsRoutes(server, dependencies.analyticsStore, "/api/v1");
+  await registerPipelineRoutes(server, dependencies.database.domain, dependencies.storage, "/api/v1");
 
   server.get("/health", async () => ({
     status: "ok",

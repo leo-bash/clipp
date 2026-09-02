@@ -64,6 +64,7 @@ export interface CreateVideoInput {
 }
 
 export type UpdateVideoInput = Pick<Video, "metadata">;
+export interface RenderedVideoInput { storageKey: string; thumbnailKey?: string; duration: number; width: number; height: number; fileSize: number; contentHash: string; qualityScore: number; metadata?: Record<string, unknown>; }
 
 export interface CreatePublicationInput {
   videoId: string;
@@ -118,6 +119,7 @@ export interface DomainStore {
   rejectVideo(id: string): Promise<Video | undefined>;
   updateVideo(id: string, input: UpdateVideoInput): Promise<Video | undefined>;
   rerenderVideo(id: string): Promise<Video | undefined>;
+  markVideoRendered(id: string, input: RenderedVideoInput): Promise<Video | undefined>;
   listPublications(params: PageParams): Promise<Page<Publication>>;
   createPublication(input: CreatePublicationInput): Promise<Publication>;
   retryPublication(id: string): Promise<Publication | undefined>;
@@ -198,6 +200,7 @@ export class MemoryDomainStore implements DomainStore {
   public async rejectVideo(id: string): Promise<Video | undefined> { return this.updateVideoStatus(id, "REJECTED"); }
   public async updateVideo(id: string, input: UpdateVideoInput): Promise<Video | undefined> { const item = await this.getVideo(id); if (!item) return undefined; Object.assign(item, input, { updatedAt: now() }); return item; }
   public async rerenderVideo(id: string): Promise<Video | undefined> { const item = await this.getVideo(id); if (!item) return undefined; item.status = "RENDERING"; item.renderVersion += 1; item.updatedAt = now(); return item; }
+  public async markVideoRendered(id: string, input: RenderedVideoInput): Promise<Video | undefined> { const item = await this.getVideo(id); if (!item) return undefined; Object.assign(item, input, { status: "READY_FOR_REVIEW", updatedAt: now() }); return item; }
   private async updateVideoStatus(id: string, status: VideoStatus): Promise<Video | undefined> { const item = await this.getVideo(id); if (!item) return undefined; Object.assign(item, { status, updatedAt: now() }); return item; }
   public async listPublications(params: PageParams): Promise<Page<Publication>> { return pageSlice(this.publicationItems, params); }
   public async createPublication(input: CreatePublicationInput): Promise<Publication> { const item: Publication = { id: randomUUID(), ...input, status: input.status ?? "SCHEDULED", attemptCount: 0, scheduledAt: input.scheduledAt, createdAt: now(), updatedAt: now() }; this.publicationItems.push(item); return item; }
@@ -256,6 +259,7 @@ export class PostgresDomainStore implements DomainStore {
   public async rejectVideo(id: string): Promise<Video | undefined> { return this.updateVideoStatus(id, "REJECTED"); }
   public async updateVideo(id: string, input: UpdateVideoInput): Promise<Video | undefined> { const [item] = await this.db.update(videos).set({ metadataJson: input.metadata, updatedAt: new Date() }).where(eq(videos.id, id)).returning(); return item ? toVideo(item) : undefined; }
   public async rerenderVideo(id: string): Promise<Video | undefined> { const [item] = await this.db.update(videos).set({ status: "RENDERING", renderVersion: sql`${videos.renderVersion} + 1`, updatedAt: new Date() }).where(eq(videos.id, id)).returning(); return item ? toVideo(item) : undefined; }
+  public async markVideoRendered(id: string, input: RenderedVideoInput): Promise<Video | undefined> { const [item] = await this.db.update(videos).set({ storageKey: input.storageKey, thumbnailKey: input.thumbnailKey, duration: input.duration, width: input.width, height: input.height, fileSize: input.fileSize, contentHash: input.contentHash, qualityScore: input.qualityScore, metadataJson: input.metadata, status: "READY_FOR_REVIEW", updatedAt: new Date() }).where(eq(videos.id, id)).returning(); return item ? toVideo(item) : undefined; }
   private async updateVideoStatus(id: string, status: VideoStatus): Promise<Video | undefined> { const [item] = await this.db.update(videos).set({ status, updatedAt: new Date() }).where(eq(videos.id, id)).returning(); return item ? toVideo(item) : undefined; }
   public async listPublications(params: PageParams): Promise<Page<Publication>> { const [items, total] = await Promise.all([this.db.select().from(publications).orderBy(desc(publications.createdAt)).limit(params.pageSize).offset((params.page - 1) * params.pageSize), this.db.select({ value: count() }).from(publications)]); return { items: items.map(toPublication), total: Number(total[0]?.value ?? 0), ...params }; }
   public async createPublication(input: CreatePublicationInput): Promise<Publication> { const [item] = await this.db.insert(publications).values({ ...input, scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : undefined }).returning(); if (!item) throw new AppError("CREATE_FAILED", "publication was not created"); return toPublication(item); }

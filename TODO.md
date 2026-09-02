@@ -196,7 +196,8 @@ PHASE 14 acceptance criteria are satisfied by the API/platform/queue tests and t
 - [x] Add queue consumer boundaries with retry and retained terminal failures.
 - [x] Add dashboard navigation and operator forms for channels, sources, candidates, review, publishing, analytics, costs, settings and health.
 - [x] Add versioned migrations for operational channel/source configuration, budget timestamps and duplicate URL uniqueness.
-- [ ] Complete real worker business processors and the dashboard one-click test pipeline end to end.
+- [x] Complete the dashboard one-click test pipeline end to end: candidate actions, FFmpeg fixture render, QC, storage preview, review and manual scheduling.
+- [ ] Complete repository-backed business processors for every queue consumer; current workers expose safe typed consumer boundaries and the render path is executable.
 - [ ] Run Docker Compose, PostgreSQL migration/seed and Redis integration on a host with Docker.
 
-PHASE 15 remains open until the unchecked MVP workflow and runtime integration checks are complete.
+PHASE 15 remains open until the worker processors and runtime integration checks are complete.
