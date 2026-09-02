@@ -11,7 +11,7 @@
 | 5 | Storage, FFmpeg renderer and QC | Completed |
 | 6 | Transcription, analysis and content planning adapters | Completed |
 | 7 | Review dashboard | Completed |
-| 8 | Mock publishers and scheduler | Pending |
+| 8 | Mock publishers and scheduler | Completed |
 | 9–14 | Official platform adapters, analytics, orchestrator and production hardening | Pending |
 
 ## Phase 1 exit criteria
@@ -52,6 +52,10 @@ Drizzle schema and versioned migration cover the 14 entities from the specificat
 
 The dashboard has an operator review queue backed entirely by API calls. An operator can edit JSON metadata, request a rerender, approve or reject a video. The API persists video metadata, increments `renderVersion` for rerender requests, and re-applies the rights gate before rendering. API tests cover the review actions and the dashboard passes typecheck, lint and production build.
 
+## Phase 8 verification
+
+`@shortfactory/platforms` defines `PlatformPublisher` with account validation, cost estimation, publish, status and analytics methods. YouTube, TikTok and Instagram mocks publish independently with fake URLs. `PublishingScheduler` requires an approved, non-blocked video, uses configured channel timezone/slots and a lock boundary, and reports partial failure without losing successful results. The publisher worker imports the scheduler and Compose includes it.
+
 ## Next milestone
 
-Phase 8 will add mock YouTube, TikTok and Instagram publishers plus scheduler boundaries.
+Phase 9 will add the official YouTube adapter boundary with OAuth, resumable-upload planning and safe private/unlisted defaults.

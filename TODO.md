@@ -1,6 +1,6 @@
 # ShortFactory — TODO
 
-## Current phase: PHASE 8 — MOCK PUBLISHING
+## Current phase: PHASE 9 — YOUTUBE ADAPTER
 
 - [x] Analyze repository and environment.
 - [x] Read the complete project specification.
@@ -84,6 +84,19 @@ PHASE 6 acceptance criteria are satisfied by the pipeline tests and full local c
 
 PHASE 7 acceptance criteria are satisfied by API coverage and the dashboard production build. The queue is intentionally API-only from the browser; no direct database access is exposed.
 
+## PHASE 8 result
+
+- [x] Add common `PlatformPublisher` contract.
+- [x] Add YouTube, TikTok and Instagram mock publishers with fake URLs.
+- [x] Add timezone-aware configurable-slot scheduler.
+- [x] Add distributed-lock seam and in-memory implementation.
+- [x] Require approved, non-blocked videos before mock publication.
+- [x] Preserve independent platform results and expose partial failure.
+- [x] Add publisher worker and Compose service.
+- [x] Test approved video → scheduled → three successful mock publications.
+
+PHASE 8 acceptance criteria are satisfied by the scheduler tests and full local check suite. No external platform account or browser automation is used.
+
 PHASE 4 acceptance criteria are satisfied by unit/API coverage. Rights decisions are explicit and do not assume that editing makes third-party content legal.
 
 ## Deferred to later phases
@@ -95,4 +108,5 @@ PHASE 4 acceptance criteria are satisfied by unit/API coverage. Rights decisions
 - [x] FFmpeg rendering and QC (Phase 5).
 - [x] AI/transcription/planning providers (Phase 6).
 - [x] Review dashboard (Phase 7).
-- [ ] Scheduling, publishing and analytics (Phases 8–12).
+- [x] Mock scheduling and publishing (Phase 8).
+- [ ] Official publishing and analytics (Phases 9–12).

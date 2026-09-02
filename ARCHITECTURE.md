@@ -32,6 +32,7 @@ The API never performs heavy FFmpeg work. Render work has a separate worker boun
 - `packages/transcription`: timestamped transcription contract, deterministic local adapter and cache boundary.
 - `packages/ai`: Zod-validated analysis/content-plan contracts, bounded retries, deterministic adapters and AI cost meter.
 - `packages/tts`: replaceable TTS contract with an explicit disabled adapter.
+- `packages/platforms`: common publishing contract, independent mock publishers and timezone-aware scheduler/lock boundary.
 - `packages/shared`: cross-package types and error taxonomy.
 - `infrastructure`: Docker Compose and future deployment scripts.
 
@@ -44,6 +45,8 @@ The render worker owns media processing and receives absolute input/output paths
 The light worker owns the candidate AI boundary. `AiPipeline` passes candidate metadata, channel configuration, performance context and a timestamped transcript to analysis; no video binary is sent to the LLM boundary. Transcription is cached by media hash, language and model. External analysis and planning responses must pass Zod schemas and have bounded retries before they can reach downstream rendering.
 
 The dashboard review queue is the operator boundary: it reads videos through the API and exposes metadata editing, rerender, approve and reject actions. It never accesses PostgreSQL directly. Rerender requests pass through the API rights gate and increment `renderVersion` so a retry cannot silently create an uncontrolled duplicate.
+
+The publisher worker schedules approved videos through `PublishingScheduler`. YouTube, TikTok and Instagram are independent publisher instances; their results are retained separately and aggregate to `SUCCESS` or `PARTIAL_FAILURE`. Mock publishers return fake URLs and are the only publishing adapters enabled in the current phase.
 
 ## Local modes
 
