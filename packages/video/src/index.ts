@@ -52,7 +52,7 @@ export async function probeMedia(filePath: string, ffprobeBinary = "ffprobe"): P
   } catch (error) { throw new RenderError(`ffprobe failed for ${filePath}: ${error instanceof Error ? error.message : "unknown error"}`, true); }
 }
 
-export async function runQualityControl(filePath: string, config: QcConfig = defaultQcConfig, ffprobeBinary = "ffprobe"): Promise<QualityControlResult> {
+export async function runQualityControl(filePath: string, config: QcConfig = defaultQcConfig, ffprobeBinary = "ffprobe", ffmpegBinary = "ffmpeg"): Promise<QualityControlResult> {
   const checks: QcCheck[] = [];
   let probe: MediaProbe;
   try { probe = await probeMedia(filePath, ffprobeBinary); } catch (error) { return { passed: false, score: 0, checks: [{ name: "readable_by_ffprobe", passed: false, critical: true, detail: error instanceof Error ? error.message : "probe failed" }] }; }
@@ -67,6 +67,7 @@ export async function runQualityControl(filePath: string, config: QcConfig = def
   checks.push({ name: "audio_present", passed: !config.audioRequired || Boolean(audio), critical: config.audioRequired, detail: audio?.codecName ?? "none" });
   checks.push({ name: "aac_audio", passed: !audio || audio.codecName === "aac", critical: config.audioRequired, detail: audio?.codecName ?? "none" });
   checks.push({ name: "platform_file_size", passed: fileSize <= config.maxFileSizeBytes, critical: true, detail: `${fileSize}/${config.maxFileSizeBytes}` });
+  checks.push(await blackVideoCheck(filePath, duration, ffmpegBinary));
   const passedCritical = checks.filter((check) => check.critical).every((check) => check.passed);
   const score = Math.round((checks.filter((check) => check.passed).length / checks.length) * 100);
   return { passed: passedCritical, score, checks, probe };
@@ -98,6 +99,7 @@ export class FFmpegRenderer implements VideoRenderer {
       const filters = zoom > 1 ? [`scale=${Math.round(width * zoom)}:${Math.round(height * zoom)}:force_original_aspect_ratio=increase`, `crop=${width}:${height}:(iw-${width})/2:(ih-${height})/2`, "setsar=1"] : [`scale=${width}:${height}:force_original_aspect_ratio=increase`, `crop=${width}:${height}`, "setsar=1"];
       if (plan.cuts && plan.cuts.length > 0) filters.push(`select='${cutExpression(plan.cuts)}'`, "setpts=N/FRAME_RATE/TB");
       if (plan.captions && plan.captions.length > 0) {
+        validateCaptions(plan.captions, plan.subtitleOptions, width, height);
         subtitlePath = path.join(temporaryDir, "captions.ass");
         await writeFile(subtitlePath, renderAss(plan.captions, plan.subtitleOptions));
       }
@@ -125,7 +127,7 @@ export class FFmpegRenderer implements VideoRenderer {
       const args = [...inputArgs, ...videoMap, ...(hasAudio ? ["-map", "0:a:0", "-c:a", "aac", "-b:a", "128k", "-af", audioFilter, "-shortest"] : ["-an"]), "-c:v", "libx264", "-preset", plan.compression?.preset ?? "veryfast", "-crf", String(plan.compression?.crf ?? 23), "-pix_fmt", "yuv420p", "-movflags", "+faststart", ...metadataArgs(plan.metadata), plan.outputPath];
       await execFileAsync(this.ffmpegBinary, args, { maxBuffer: 4 * 1024 * 1024 });
       const probe = await probeMedia(plan.outputPath, this.ffprobeBinary);
-      const qc = await runQualityControl(plan.outputPath, qcConfig, this.ffprobeBinary);
+      const qc = await runQualityControl(plan.outputPath, qcConfig, this.ffprobeBinary, this.ffmpegBinary);
       if (plan.thumbnailOutputPath) await extractThumbnail(plan.outputPath, plan.thumbnailOutputPath, this.ffmpegBinary);
       return { outputPath: plan.outputPath, probe, qc, durationMs: Date.now() - started };
     } catch (error) { if (error instanceof RenderError) throw error; throw new RenderError(`ffmpeg render failed: ${error instanceof Error ? error.message : "unknown error"}`, true); } finally { await rm(temporaryDir, { recursive: true, force: true }); }
@@ -168,3 +170,22 @@ function assTime(seconds: number): string { const safe = Math.max(0, seconds); c
 function clampVolume(value: number): number { if (!Number.isFinite(value)) throw new ValidationError("audio volume must be finite"); return Math.min(4, Math.max(0, value)); }
 function metadataArgs(metadata: Record<string, string> | undefined): string[] { return Object.entries(metadata ?? {}).flatMap(([key, value]) => ["-metadata", `${key}=${value}`]); }
 async function extractThumbnail(inputPath: string, outputPath: string, ffmpegBinary: string): Promise<void> { await execFileAsync(ffmpegBinary, ["-y", "-hide_banner", "-loglevel", "error", "-i", inputPath, "-frames:v", "1", "-q:v", "2", outputPath], { maxBuffer: 2 * 1024 * 1024 }); }
+
+function validateCaptions(cues: CaptionCue[], options: SubtitleOptions | undefined, width: number, height: number): void {
+  const safeMargin = options?.safeMargin ?? 160;
+  if (!Number.isFinite(safeMargin) || safeMargin < 0 || safeMargin * 2 >= Math.min(width, height)) throw new ValidationError("caption safe margin is outside the video canvas");
+  if (cues.some((cue) => !Number.isFinite(cue.start) || !Number.isFinite(cue.end) || cue.start < 0 || cue.end <= cue.start || !cue.text.trim())) throw new ValidationError("caption cues must have valid non-empty time ranges");
+}
+
+async function blackVideoCheck(filePath: string, duration: number, ffmpegBinary: string): Promise<QcCheck> {
+  try {
+    const { stdout, stderr } = await execFileAsync(ffmpegBinary, ["-hide_banner", "-loglevel", "info", "-i", filePath, "-vf", "blackdetect=d=0.5:pix_th=0.02", "-an", "-f", "null", "-"], { maxBuffer: 2 * 1024 * 1024 });
+    const output = `${stdout}\n${stderr}`;
+    const blackDurations = [...output.matchAll(/black_duration:([0-9.]+)/gu)].map((match) => Number(match[1]));
+    const blackDuration = blackDurations.reduce((total, value) => total + (Number.isFinite(value) ? value : 0), 0);
+    const passed = duration <= 0 || blackDuration < duration * 0.95;
+    return { name: "black_video", passed, critical: true, detail: `${blackDuration.toFixed(2)}s black of ${duration.toFixed(2)}s` };
+  } catch (error) {
+    return { name: "black_video", passed: false, critical: true, detail: error instanceof Error ? error.message : "black video check failed" };
+  }
+}

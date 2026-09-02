@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
-import { FFmpegRenderer } from "./index.js";
+import { FFmpegRenderer, runQualityControl } from "./index.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -72,6 +72,19 @@ describe("FFmpegRenderer", () => {
       const result = await new FFmpegRenderer().render({ inputPath, outputPath, zoom: 1.1, cuts: [{ start: 0, end: 1 }] }, { width: 1080, height: 1920, minDuration: 0.5, maxDuration: 2, audioRequired: false, maxFileSizeBytes: 10 * 1024 * 1024 });
       expect(result.qc.passed).toBe(true);
       expect(result.probe.format.duration).toBeCloseTo(1, 0);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it("fails critical QC for an all-black video", async () => {
+    const directory = await mkdtemp(path.join(os.tmpdir(), "shortfactory-video-black-"));
+    const inputPath = path.join(directory, "black.mp4");
+    try {
+      await execFileAsync("ffmpeg", ["-y", "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=black:s=1080x1920:d=1:r=30", "-c:v", "libx264", "-pix_fmt", "yuv420p", inputPath]);
+      const result = await runQualityControl(inputPath, { width: 1080, height: 1920, minDuration: 0.5, maxDuration: 2, audioRequired: false, maxFileSizeBytes: 10 * 1024 * 1024 });
+      expect(result.passed).toBe(false);
+      expect(result.checks.find((check) => check.name === "black_video")).toMatchObject({ passed: false, critical: true });
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

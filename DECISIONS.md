@@ -80,3 +80,11 @@ The publisher worker selects the official YouTube, TikTok or Instagram adapter o
 ### Optional API-key RBAC boundary
 
 The API supports an explicit `AUTH_MODE=api-key` deployment mode with separate ADMIN, EDITOR and VIEWER runtime keys. Local development remains disabled by default, while production deployments can enforce read/write separation without introducing browser-stored secrets or cookie-based sessions.
+
+### Optional premium TTS adapter
+
+The TTS boundary keeps deterministic and disabled providers available, and adds an official ElevenLabs HTTP adapter selected only when `TTS_API_KEY` and `TTS_VOICE_ID` are configured. The adapter estimates cost before synthesis, writes returned audio under an explicit runtime directory and is wrapped by the worker's reservation/commit/release gate. Missing credentials defer the job instead of triggering an external call.
+
+### Typed experiment metadata in video metadata
+
+Video experiment fields are represented by a shared TypeScript contract and persisted inside the existing versioned metadata JSON rather than adding a migration for each new editorial dimension. Analytics aggregates available `formatId` values by channel and format, so A/B learning compares distinct videos without creating duplicate publications.
