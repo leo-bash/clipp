@@ -1,6 +1,6 @@
 # ShortFactory — TODO
 
-## Current phase: PHASE 10 — TIKTOK ADAPTER
+## Current phase: PHASE 11 — INSTAGRAM ADAPTER
 
 - [x] Analyze repository and environment.
 - [x] Read the complete project specification.
@@ -109,6 +109,18 @@ PHASE 8 acceptance criteria are satisfied by the scheduler tests and full local 
 
 PHASE 9 acceptance criteria are satisfied by the adapter tests and full local check suite. Real YouTube credentials are intentionally not configured; no public upload is attempted.
 
+## PHASE 10 result
+
+- [x] Add official TikTok OAuth code exchange and refresh-token methods.
+- [x] Add creator-info validation through Content Posting API.
+- [x] Add configurable Direct Post and Upload-to-Draft modes.
+- [x] Add chunked FILE_UPLOAD transfer with Content-Range headers.
+- [x] Add status polling through the official status/fetch endpoint.
+- [x] Add configured fallback from Direct Post to Upload-to-Draft for missing scope authorization.
+- [x] Test official direct-post initialization and transfer with a mocked HTTP boundary.
+
+PHASE 10 acceptance criteria are satisfied by the adapter tests and full local check suite. TikTok credentials, scopes and app approval remain runtime/account configuration; no browser automation is used.
+
 PHASE 4 acceptance criteria are satisfied by unit/API coverage. Rights decisions are explicit and do not assume that editing makes third-party content legal.
 
 ## Deferred to later phases
@@ -122,4 +134,5 @@ PHASE 4 acceptance criteria are satisfied by unit/API coverage. Rights decisions
 - [x] Review dashboard (Phase 7).
 - [x] Mock scheduling and publishing (Phase 8).
 - [x] Official YouTube publishing boundary (Phase 9).
-- [ ] TikTok, Instagram and analytics (Phases 10–12).
+- [x] Official TikTok publishing boundary (Phase 10).
+- [ ] Instagram and analytics (Phases 11–12).

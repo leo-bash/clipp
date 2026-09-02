@@ -119,6 +119,103 @@ export class YouTubePublisher implements PlatformPublisher {
   private authHeaders(): Record<string, string> { return this.accessToken ? { authorization: `Bearer ${this.accessToken}` } : {}; }
 }
 
+export type TikTokMode = "DIRECT_POST" | "UPLOAD_DRAFT";
+export interface TikTokPublisherOptions {
+  clientKey: string;
+  clientSecret: string;
+  accessToken?: string;
+  openId?: string;
+  mode?: TikTokMode;
+  fallbackToDraft?: boolean;
+  tokenUrl?: string;
+  apiBaseUrl?: string;
+}
+
+export class TikTokPublisher implements PlatformPublisher {
+  public readonly platform = "TIKTOK" as const;
+  private accessToken?: string;
+  private openId?: string;
+  private refreshTokenValue?: string;
+  private readonly options: Required<Pick<TikTokPublisherOptions, "clientKey" | "clientSecret" | "mode" | "fallbackToDraft" | "tokenUrl" | "apiBaseUrl">>;
+
+  public constructor(options: TikTokPublisherOptions) {
+    this.options = { clientKey: options.clientKey, clientSecret: options.clientSecret, mode: options.mode ?? "UPLOAD_DRAFT", fallbackToDraft: options.fallbackToDraft ?? true, tokenUrl: options.tokenUrl ?? "https://open.tiktokapis.com/v2/oauth/token/", apiBaseUrl: options.apiBaseUrl ?? "https://open.tiktokapis.com" };
+    this.accessToken = options.accessToken;
+    this.openId = options.openId;
+  }
+
+  public async connectAccount(code: string, redirectUri: string): Promise<{ accessToken: string; openId?: string; refreshToken?: string }> {
+    const response = await fetch(this.options.tokenUrl, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_key: this.options.clientKey, client_secret: this.options.clientSecret, code, grant_type: "authorization_code", redirect_uri: redirectUri }) });
+    const payload = await jsonOrError(response, "TikTok OAuth exchange failed") as { access_token?: string; open_id?: string; refresh_token?: string };
+    if (!payload.access_token) throw new Error("TikTok OAuth response did not contain an access token");
+    this.accessToken = payload.access_token;
+    this.openId = payload.open_id ?? this.openId;
+    this.refreshTokenValue = payload.refresh_token ?? this.refreshTokenValue;
+    return { accessToken: this.accessToken, openId: this.openId, refreshToken: this.refreshTokenValue };
+  }
+
+  public async refreshToken(): Promise<string> {
+    if (!this.refreshTokenValue) throw new Error("TikTok refresh token is not configured");
+    const response = await fetch(this.options.tokenUrl, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_key: this.options.clientKey, client_secret: this.options.clientSecret, grant_type: "refresh_token", refresh_token: this.refreshTokenValue }) });
+    const payload = await jsonOrError(response, "TikTok token refresh failed") as { access_token?: string; refresh_token?: string };
+    if (!payload.access_token) throw new Error("TikTok refresh response did not contain an access token");
+    this.accessToken = payload.access_token;
+    this.refreshTokenValue = payload.refresh_token ?? this.refreshTokenValue;
+    return this.accessToken;
+  }
+
+  public async queryCreatorInfo(): Promise<Record<string, unknown>> {
+    const response = await fetch(`${this.options.apiBaseUrl}/v2/post/publish/creator_info/query/`, { method: "POST", headers: { ...this.authHeaders(), "content-type": "application/json; charset=UTF-8" }, body: "{}" });
+    const payload = await jsonOrError(response, "TikTok creator info request failed") as { data?: Record<string, unknown>; error?: { code?: string; message?: string } };
+    if (payload.error?.code && payload.error.code !== "ok") throw new Error(payload.error.message ?? payload.error.code);
+    return payload.data ?? {};
+  }
+
+  public async validateAccount(): Promise<AccountValidation> {
+    if (!this.accessToken) return { ok: false, detail: "TIKTOK_API_NOT_CONFIGURED" };
+    try { const info = await this.queryCreatorInfo(); return { ok: Object.keys(info).length > 0, detail: Object.keys(info).length > 0 ? "TikTok creator validated" : "TIKTOK_CREATOR_NOT_FOUND" }; } catch (error) { return { ok: false, detail: error instanceof Error ? error.message : "TIKTOK_VALIDATION_FAILED" }; }
+  }
+
+  public async estimateCost(input: PublishInput): Promise<number> { void input; return 0; }
+
+  public async publish(input: PublishInput): Promise<PublishResult> {
+    if (!this.accessToken) return { platform: this.platform, status: "FAILED", error: "TIKTOK_API_NOT_CONFIGURED" };
+    if (!input.filePath || !path.isAbsolute(input.filePath)) return { platform: this.platform, status: "FAILED", error: "TIKTOK_FILE_PATH_REQUIRED" };
+    try {
+      const bytes = await readFile(input.filePath);
+      const firstAttempt = await this.publishMode(input, bytes, this.options.mode);
+      if (firstAttempt.status === "FAILED" && this.options.mode === "DIRECT_POST" && this.options.fallbackToDraft && firstAttempt.error?.includes("scope_not_authorized")) return this.publishMode(input, bytes, "UPLOAD_DRAFT");
+      return firstAttempt;
+    } catch (error) { return { platform: this.platform, status: "FAILED", error: error instanceof Error ? error.message : "TIKTOK_UPLOAD_FAILED" }; }
+  }
+
+  public async getStatus(externalPostId: string): Promise<PlatformStatus> {
+    const response = await fetch(`${this.options.apiBaseUrl}/v2/post/publish/status/fetch/`, { method: "POST", headers: { ...this.authHeaders(), "content-type": "application/json; charset=UTF-8" }, body: JSON.stringify({ publish_id: externalPostId }) });
+    const payload = await jsonOrError(response, "TikTok status request failed") as { data?: { status?: string; publicly_available_post_id?: string[] }; error?: { code?: string; message?: string } };
+    if (payload.error?.code && payload.error.code !== "ok") throw new Error(payload.error.message ?? payload.error.code);
+    const status = payload.data?.status;
+    return { externalPostId, status: status === "PUBLISH_COMPLETE" ? "PUBLISHED" : status === "FAILED" ? "FAILED" : "PROCESSING" };
+  }
+
+  public async getAnalytics(externalPostId: string): Promise<AnalyticsSnapshot> { void externalPostId; return { views: 0, likes: 0, comments: 0, shares: 0 }; }
+
+  private async publishMode(input: PublishInput, bytes: Buffer, mode: TikTokMode): Promise<PublishResult> {
+    const chunkSize = 10_000_000;
+    const endpoint = mode === "DIRECT_POST" ? "/v2/post/publish/video/init/" : "/v2/post/publish/inbox/video/init/";
+    const totalChunkCount = Math.max(1, Math.ceil(bytes.byteLength / chunkSize));
+    const response = await fetch(`${this.options.apiBaseUrl}${endpoint}`, { method: "POST", headers: { ...this.authHeaders(), "content-type": "application/json; charset=UTF-8" }, body: JSON.stringify({ ...(mode === "DIRECT_POST" ? { post_info: { title: input.title, privacy_level: "SELF_ONLY", disable_duet: false, disable_comment: false, disable_stitch: false } } : {}), source_info: { source: "FILE_UPLOAD", video_size: bytes.byteLength, chunk_size: chunkSize, total_chunk_count: totalChunkCount } }) });
+    const payload = await response.json() as { data?: { publish_id?: string; upload_url?: string }; error?: { code?: string; message?: string } };
+    if (!response.ok || payload.error?.code && payload.error.code !== "ok") return { platform: this.platform, status: "FAILED", error: payload.error?.code ?? `TIKTOK_INIT_FAILED_${response.status}` };
+    const publishId = payload.data?.publish_id;
+    const uploadUrl = payload.data?.upload_url;
+    if (!publishId) return { platform: this.platform, status: "FAILED", error: "TIKTOK_PUBLISH_ID_MISSING" };
+    if (uploadUrl) for (let start = 0; start < bytes.byteLength; start += chunkSize) { const end = Math.min(bytes.byteLength, start + chunkSize) - 1; const uploaded = await fetch(uploadUrl, { method: "PUT", headers: { "content-type": "video/mp4", "content-length": String(end - start + 1), "content-range": `bytes ${start}-${end}/${bytes.byteLength}` }, body: bytes.subarray(start, end + 1) }); if (!uploaded.ok) return { platform: this.platform, status: "FAILED", externalPostId: publishId, error: `TIKTOK_TRANSFER_FAILED_${uploaded.status}` }; }
+    return { platform: this.platform, status: "SUCCESS", externalPostId: publishId };
+  }
+
+  private authHeaders(): Record<string, string> { return this.accessToken ? { authorization: `Bearer ${this.accessToken}` } : {}; }
+}
+
 export interface SchedulerChannel { id: string; timezone: string; publishingSlots: string[]; }
 export interface SchedulableVideo { id: string; status: string; rightsStatus: string; }
 export interface ScheduledPublication extends PublishResult { scheduledAt: string; }

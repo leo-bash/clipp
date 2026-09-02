@@ -13,7 +13,8 @@
 | 7 | Review dashboard | Completed |
 | 8 | Mock publishers and scheduler | Completed |
 | 9 | Official YouTube adapter | Completed |
-| 10–14 | TikTok, Instagram, analytics, orchestrator and production hardening | Pending |
+| 10 | Official TikTok adapter | Completed |
+| 11–14 | Instagram, analytics, orchestrator and production hardening | Pending |
 
 ## Phase 1 exit criteria
 
@@ -61,6 +62,10 @@ The dashboard has an operator review queue backed entirely by API calls. An oper
 
 `YouTubePublisher` implements OAuth authorization-code exchange, refresh-token rotation, credential validation, official `videos.insert`-compatible resumable upload initialization plus upload, status and statistics retrieval. It defaults to `private`, only sends `publishAt` for future private scheduling, requires an absolute media file path, and returns configuration/upload failures without browser automation. Tests verify the official upload sequence and private default.
 
+## Phase 10 verification
+
+`TikTokPublisher` implements OAuth code exchange/refresh, creator-info validation, Content Posting API Direct Post and Upload-to-Draft modes, chunked file transfer with `Content-Range`, and status polling through `status/fetch`. Direct Post uses the safe `SELF_ONLY` privacy level and can fall back to Upload-to-Draft only when configured and the API reports missing scope authorization. Tests verify the official direct-post initialization and transfer boundary.
+
 ## Next milestone
 
-Phase 10 will add the official TikTok Content Posting API boundary with direct-post/draft configuration and status polling.
+Phase 11 will add the official Meta/Instagram publishing boundary with explicit account configuration failures.
