@@ -71,9 +71,20 @@ describe("api foundation", () => {
     expect(body.dependencies).toEqual(expect.arrayContaining([
       expect.objectContaining({ mode: "memory", status: "degraded" }),
       expect.objectContaining({ mode: "mock", status: "degraded" }),
+      expect.objectContaining({ name: "auth", status: "degraded" }),
       expect.objectContaining({ name: "workers", status: "degraded" }),
       expect.objectContaining({ name: "budget", status: "ok" })
     ]));
+  });
+
+  it("reports configured admin access as ready without exposing the key", async () => {
+    const app = await buildApp(loadConfig({ AUTH_MODE: "api-key", ADMIN_API_KEY: "admin-key-123456789" }));
+    apps.push(app);
+    const response = await app.server.inject({ method: "GET", url: "/ready" });
+    const auth = response.json<{ dependencies: Array<{ name: string; status: string; detail?: string }> }>().dependencies.find((dependency) => dependency.name === "auth");
+
+    expect(auth).toMatchObject({ name: "auth", status: "ok", detail: "admin API key configured" });
+    expect(JSON.stringify(auth)).not.toContain("admin-key");
   });
 
   it("serves seeded channels and validates CRUD input", async () => {

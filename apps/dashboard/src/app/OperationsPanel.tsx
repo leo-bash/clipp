@@ -121,7 +121,7 @@ export default function OperationsPanel({ channels, health }: OperationsPanelPro
   const dependency = (name: string): DependencyHealth | undefined => health.find((item) => item.name.toLowerCase() === name.toLowerCase());
   const ready = (name: string): boolean => dependency(name)?.status === "ok";
   const setupItems = [
-    { step: "Create Admin", ready: false, detail: "Authentication provider is not configured in this MVP boundary." },
+    { step: "Create Admin", ready: ready("auth"), detail: dependency("auth")?.detail ?? "Authentication status unavailable." },
     { step: "Configure Storage", ready: ready("storage"), detail: dependency("storage")?.detail ?? "Storage status unavailable." },
     { step: "Configure AI", ready: ready("llm"), detail: dependency("llm")?.detail ?? "LLM status unavailable." },
     { step: "Configure Budget", ready: ready("budget"), detail: dependency("budget")?.detail ?? "Budget status unavailable." },
