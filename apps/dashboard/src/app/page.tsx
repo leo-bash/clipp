@@ -6,6 +6,7 @@ import OperationsPanel from "./OperationsPanel";
 export const dynamic = "force-dynamic";
 
 const services = ["API", "Postgres", "Redis", "Storage", "FFmpeg", "Workers", "LLM", "TTS", "YouTube", "TikTok", "Instagram"] as const;
+type AnalyticsDimensionTotals = { views: number; likes: number; comments: number; shares: number; followersGained: number };
 
 async function getChannels(): Promise<Channel[]> {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
@@ -29,14 +30,16 @@ async function getVideos(): Promise<Video[]> {
   } catch { return []; }
 }
 
-async function getAnalytics(): Promise<{ snapshotCount: number; totals: { views: number; likes: number; comments: number; shares: number; followersGained: number } }> {
+async function getAnalytics(): Promise<{ snapshotCount: number; totals: AnalyticsDimensionTotals; byChannel: Record<string, AnalyticsDimensionTotals>; byFormat: Record<string, AnalyticsDimensionTotals> }> {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
   try {
     const response = await fetch(`${apiUrl}/api/v1/analytics/overview`);
-    if (!response.ok) return { snapshotCount: 0, totals: { views: 0, likes: 0, comments: 0, shares: 0, followersGained: 0 } };
-    return await response.json() as { snapshotCount: number; totals: { views: number; likes: number; comments: number; shares: number; followersGained: number } };
-  } catch { return { snapshotCount: 0, totals: { views: 0, likes: 0, comments: 0, shares: 0, followersGained: 0 } }; }
+    if (!response.ok) return emptyAnalytics();
+    return await response.json() as { snapshotCount: number; totals: AnalyticsDimensionTotals; byChannel: Record<string, AnalyticsDimensionTotals>; byFormat: Record<string, AnalyticsDimensionTotals> };
+  } catch { return emptyAnalytics(); }
 }
+
+function emptyAnalytics(): { snapshotCount: number; totals: AnalyticsDimensionTotals; byChannel: Record<string, AnalyticsDimensionTotals>; byFormat: Record<string, AnalyticsDimensionTotals> } { return { snapshotCount: 0, totals: { views: 0, likes: 0, comments: 0, shares: 0, followersGained: 0 }, byChannel: {}, byFormat: {} }; }
 
 async function getPublications(): Promise<Publication[]> {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
@@ -63,6 +66,10 @@ export default async function Home(): Promise<React.JSX.Element> {
   const statusFor = (service: string): DependencyHealth => health.find((item) => item.name.toLowerCase() === service.toLowerCase()) ?? { name: service.toLowerCase(), status: "down", mode: "mock", detail: "not reported by readiness endpoint" };
   const count = (status: Video["status"]): number => videos.filter((video) => video.status === status).length;
   const spend = costs.reduce((total, cost) => total + (cost.actualCostEur ?? cost.estimatedCostEur), 0);
+  const topDimension = (dimensions: Record<string, AnalyticsDimensionTotals>): [string, AnalyticsDimensionTotals] | undefined => Object.entries(dimensions).sort(([, left], [, right]) => right.views - left.views)[0];
+  const topChannel = topDimension(analytics.byChannel);
+  const topFormat = topDimension(analytics.byFormat);
+  const topChannelName = topChannel ? channels.find((channel) => channel.id === topChannel[0])?.name ?? topChannel[0] : "—";
 
   return (
     <main className="shell">
@@ -84,6 +91,10 @@ export default async function Home(): Promise<React.JSX.Element> {
         <div><small>LIKES</small><strong>{analytics.totals.likes}</strong></div>
         <div><small>SHARES</small><strong>{analytics.totals.shares}</strong></div>
         <div><small>FOLLOWERS</small><strong>{analytics.totals.followersGained}</strong></div>
+      </section>
+      <section className="analytics-strip" aria-label="successful dimensions">
+        <div><small>TOP CHANNEL</small><strong>{topChannelName}</strong><span>{topChannel ? `${topChannel[1].views} views` : "No analytics yet"}</span></div>
+        <div><small>TOP FORMAT</small><strong>{topFormat?.[0] ?? "—"}</strong><span>{topFormat ? `${topFormat[1].views} views` : "No experiment data yet"}</span></div>
       </section>
       <section className="kpi-section" aria-label="today production status">
         <p className="eyebrow">TODAY</p>

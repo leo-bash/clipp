@@ -198,6 +198,9 @@ PHASE 14 acceptance criteria are satisfied by the API/platform/queue tests and t
 - [x] Add versioned migrations for operational channel/source configuration, budget timestamps and duplicate URL uniqueness.
 - [x] Complete the dashboard one-click test pipeline end to end: candidate actions, FFmpeg fixture render, QC, storage preview, review and manual scheduling.
 - [x] Complete typed business processors for every queue consumer: discovery, ingestion/AI, transcription, analysis, planning, render, publishing, analytics, cleanup and orchestration now execute complete payloads or explicitly defer incomplete jobs.
+- [x] Expose paginated operational APIs for platform accounts, source assets, transcripts, content plans and job audits.
+- [x] Add typed per-video experiment metadata and analytics aggregation by channel and format.
+- [x] Show most-successful channel and format on the dashboard home.
 - [ ] Run Docker Compose, PostgreSQL migration/seed and Redis integration on a host with Docker.
 - [x] Add a dedicated typed TTS queue consumer with deterministic cache-first local behavior.
 

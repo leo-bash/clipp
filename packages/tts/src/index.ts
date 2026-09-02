@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { ProviderError } from "@shortfactory/shared";
 
 export interface TtsInput { text: string; language: string; voice: string; }
@@ -64,6 +66,46 @@ export class DeterministicTtsProvider implements TTSProvider {
   public async synthesize(input: TtsInput): Promise<TtsResult> {
     const costEur = await this.estimatedCost(input);
     return { provider: "deterministic", audioPath: `tts://${ttsCacheKey(input)}.wav`, duration: Math.max(1, input.text.trim().split(/\s+/u).length / 2.5), costEur };
+  }
+}
+
+export interface ElevenLabsTtsProviderOptions {
+  apiKey: string;
+  voiceId: string;
+  modelId?: string;
+  outputFormat?: string;
+  outputDirectory: string;
+  apiBaseUrl?: string;
+  costPerThousandCharactersEur?: number;
+}
+
+/** Official ElevenLabs text-to-speech REST adapter. It writes audio to an explicit local output directory. */
+export class ElevenLabsTtsProvider implements TTSProvider {
+  private readonly options: Required<ElevenLabsTtsProviderOptions>;
+
+  public constructor(options: ElevenLabsTtsProviderOptions) {
+    this.options = { apiKey: options.apiKey, voiceId: options.voiceId, modelId: options.modelId ?? "eleven_multilingual_v2", outputFormat: options.outputFormat ?? "mp3_44100_128", outputDirectory: options.outputDirectory, apiBaseUrl: options.apiBaseUrl ?? "https://api.elevenlabs.io", costPerThousandCharactersEur: options.costPerThousandCharactersEur ?? 0.30 };
+  }
+
+  public async estimatedCost(input: TtsInput): Promise<number> {
+    if (!Number.isFinite(this.options.costPerThousandCharactersEur) || this.options.costPerThousandCharactersEur < 0) throw new ProviderError("TTS cost configuration is invalid", false);
+    return Math.max(0.001, (input.text.trim().length / 1000) * this.options.costPerThousandCharactersEur);
+  }
+
+  public async synthesize(input: TtsInput): Promise<TtsResult> {
+    if (!this.options.apiKey || !this.options.voiceId) throw new ProviderError("ElevenLabs requires TTS_API_KEY and TTS_VOICE_ID", false);
+    const key = ttsCacheKey({ ...input, voice: this.options.voiceId });
+    const extension = this.options.outputFormat.split("_")[0] || "mp3";
+    const audioPath = path.join(this.options.outputDirectory, `${key}.${extension}`);
+    await mkdir(this.options.outputDirectory, { recursive: true });
+    const requestBody: Record<string, string> = { text: input.text, model_id: this.options.modelId };
+    if (this.options.modelId !== "eleven_multilingual_v2") requestBody.language_code = input.language;
+    const response = await fetch(`${this.options.apiBaseUrl}/v1/text-to-speech/${encodeURIComponent(this.options.voiceId)}?output_format=${encodeURIComponent(this.options.outputFormat)}`, { method: "POST", headers: { "xi-api-key": this.options.apiKey, "content-type": "application/json" }, body: JSON.stringify(requestBody) });
+    if (!response.ok) throw new ProviderError(`ElevenLabs TTS request failed (${response.status})`, response.status === 429 || response.status >= 500);
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (bytes.length === 0) throw new ProviderError("ElevenLabs returned an empty audio response", false);
+    await writeFile(audioPath, bytes, { flag: "wx" }).catch(async (error: unknown) => { if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error; });
+    return { provider: "elevenlabs", audioPath, costEur: await this.estimatedCost(input) };
   }
 }
 

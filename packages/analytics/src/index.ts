@@ -7,7 +7,8 @@ import { AppError } from "@shortfactory/shared";
 
 export interface AnalyticsSnapshotRecord extends AnalyticsSnapshot { id: string; publicationId: string; platform: string; externalPostId: string; capturedAt: string; followersGained: number; channelId?: string; metadata?: Record<string, unknown>; }
 export interface AnalyticsSnapshotStore { save(snapshot: Omit<AnalyticsSnapshotRecord, "id">): Promise<AnalyticsSnapshotRecord>; list(publicationId?: string): Promise<AnalyticsSnapshotRecord[]>; }
-export interface AnalyticsOverview { snapshotCount: number; totals: Pick<AnalyticsSnapshot, "views" | "likes" | "comments" | "shares"> & { followersGained: number }; byPlatform: Record<string, Pick<AnalyticsSnapshot, "views" | "likes" | "comments" | "shares">>; }
+export interface AnalyticsDimensionTotals extends Pick<AnalyticsSnapshot, "views" | "likes" | "comments" | "shares"> { followersGained: number; }
+export interface AnalyticsOverview { snapshotCount: number; totals: AnalyticsDimensionTotals; byPlatform: Record<string, Pick<AnalyticsSnapshot, "views" | "likes" | "comments" | "shares">>; byChannel: Record<string, AnalyticsDimensionTotals>; byFormat: Record<string, AnalyticsDimensionTotals>; }
 
 export const analyticsWindows = ["1h", "6h", "24h", "72h", "7d"] as const;
 export type AnalyticsWindow = (typeof analyticsWindows)[number];
@@ -21,9 +22,19 @@ export function scheduleAnalyticsWindows(publicationId: string, publishedAt: Dat
 export function buildAnalyticsOverview(snapshots: AnalyticsSnapshotRecord[]): AnalyticsOverview {
   const totals = { views: 0, likes: 0, comments: 0, shares: 0, followersGained: 0 };
   const byPlatform: Record<string, Pick<AnalyticsSnapshot, "views" | "likes" | "comments" | "shares">> = {};
-  for (const snapshot of snapshots) { totals.views += snapshot.views; totals.likes += snapshot.likes; totals.comments += snapshot.comments; totals.shares += snapshot.shares; totals.followersGained += snapshot.followersGained; const current = byPlatform[snapshot.platform] ?? { views: 0, likes: 0, comments: 0, shares: 0 }; current.views += snapshot.views; current.likes += snapshot.likes; current.comments += snapshot.comments; current.shares += snapshot.shares; byPlatform[snapshot.platform] = current; }
-  return { snapshotCount: snapshots.length, totals, byPlatform };
+  const byChannel: Record<string, AnalyticsDimensionTotals> = {};
+  const byFormat: Record<string, AnalyticsDimensionTotals> = {};
+  for (const snapshot of snapshots) {
+    totals.views += snapshot.views; totals.likes += snapshot.likes; totals.comments += snapshot.comments; totals.shares += snapshot.shares; totals.followersGained += snapshot.followersGained;
+    const current = byPlatform[snapshot.platform] ?? { views: 0, likes: 0, comments: 0, shares: 0 }; current.views += snapshot.views; current.likes += snapshot.likes; current.comments += snapshot.comments; current.shares += snapshot.shares; byPlatform[snapshot.platform] = current;
+    if (snapshot.channelId) addDimension(byChannel, snapshot.channelId, snapshot);
+    const formatId = typeof snapshot.metadata?.formatId === "string" ? snapshot.metadata.formatId : typeof snapshot.metadata?.format === "string" ? snapshot.metadata.format : undefined;
+    if (formatId) addDimension(byFormat, formatId, snapshot);
+  }
+  return { snapshotCount: snapshots.length, totals, byPlatform, byChannel, byFormat };
 }
+
+function addDimension(target: Record<string, AnalyticsDimensionTotals>, key: string, snapshot: AnalyticsSnapshotRecord): void { const current = target[key] ?? { views: 0, likes: 0, comments: 0, shares: 0, followersGained: 0 }; current.views += snapshot.views; current.likes += snapshot.likes; current.comments += snapshot.comments; current.shares += snapshot.shares; current.followersGained += snapshot.followersGained; target[key] = current; }
 
 export class InMemoryAnalyticsSnapshotStore implements AnalyticsSnapshotStore {
   private readonly snapshots: AnalyticsSnapshotRecord[] = [];

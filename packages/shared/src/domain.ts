@@ -24,6 +24,18 @@ export type PublicationStatus = (typeof publicationStatuses)[number];
 export const roles = ["ADMIN", "EDITOR", "VIEWER"] as const;
 export type Role = (typeof roles)[number];
 
+export const hookTypes = ["QUESTION", "SHOCK", "CURIOSITY", "DIRECT_VALUE", "STORY"] as const;
+export type HookType = (typeof hookTypes)[number];
+
+export interface ExperimentMetadata {
+  formatId?: string;
+  hookType?: HookType;
+  captionStyle?: string;
+  durationBucket?: string;
+  voiceId?: string;
+  topic?: string;
+}
+
 export interface Channel {
   id: string;
   name: string;
@@ -172,6 +184,7 @@ export interface Video {
   qualityScore?: number;
   rightsStatus: RightsStatus;
   metadata?: Record<string, unknown>;
+  experiment?: ExperimentMetadata;
   createdAt: string;
   updatedAt: string;
 }

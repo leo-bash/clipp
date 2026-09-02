@@ -1,6 +1,6 @@
-import { Queue, Worker } from "bullmq";
+import { Queue, UnrecoverableError, Worker } from "bullmq";
 import IORedis from "ioredis";
-import type { ServiceMode } from "@shortfactory/shared";
+import { AppError, type ServiceMode } from "@shortfactory/shared";
 
 export interface QueueJob<TPayload> {
   name: string;
@@ -116,10 +116,16 @@ export function createQueueWorker(mode: "mock" | "redis", url: string, queueName
   const deadLetterQueue = new Queue(`${queueName}.dead-letter`, { connection });
   const worker = new Worker(queueName, async (job) => {
     const payload = job.data as QueueJob<unknown>;
-    await processor({ ...payload, name: payload.name ?? job.name });
+    try {
+      await processor({ ...payload, name: payload.name ?? job.name });
+    } catch (error) {
+      if (error instanceof AppError && !error.retryable) throw new UnrecoverableError(error.message);
+      throw error;
+    }
   }, { connection, concurrency: options.concurrency ?? 1 });
   worker.on("failed", (job, error) => {
-    if (!job || job.attemptsMade < 3) return;
+    const permanent = error instanceof UnrecoverableError || error?.name === "UnrecoverableError";
+    if (!job || (!permanent && job.attemptsMade < 3)) return;
     void deadLetterQueue.add("dead-letter", { originalQueue: queueName, job: job.data, error: error instanceof Error ? error.message : "job failed", failedAt: new Date().toISOString() }, { jobId: `dlq:${queueName}:${job.id ?? job.name}`, removeOnComplete: false, removeOnFail: false });
   });
   worker.on("error", () => undefined);

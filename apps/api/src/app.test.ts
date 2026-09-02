@@ -160,8 +160,9 @@ describe("api foundation", () => {
     const channels = await app.server.inject({ method: "GET", url: "/api/v1/channels?pageSize=1" });
     const channelId = channels.json<{ items: Array<{ id: string }> }>().items[0]?.id;
     if (!channelId) throw new Error("seed channel missing");
-    const created = await app.server.inject({ method: "POST", url: "/api/v1/videos", payload: { channelId, rightsStatus: "OWNED", metadata: { title: "Draft" } } });
+    const created = await app.server.inject({ method: "POST", url: "/api/v1/videos", payload: { channelId, rightsStatus: "OWNED", metadata: { title: "Draft" }, experiment: { formatId: "tutorial-v1", hookType: "DIRECT_VALUE", captionStyle: "clean", durationBucket: "18-30", topic: "metadata" } } });
     const videoId = created.json<{ id: string }>().id;
+    expect(created.json<{ experiment: { formatId: string; hookType: string } }>()).toMatchObject({ experiment: { formatId: "tutorial-v1", hookType: "DIRECT_VALUE" } });
     const edited = await app.server.inject({ method: "PATCH", url: `/api/v1/videos/${videoId}`, payload: { metadata: { title: "Edited" } } });
     const rerendered = await app.server.inject({ method: "POST", url: `/api/v1/videos/${videoId}/rerender` });
     const approved = await app.server.inject({ method: "POST", url: `/api/v1/videos/${videoId}/approve` });

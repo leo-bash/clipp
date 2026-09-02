@@ -876,6 +876,12 @@ importers:
       '@shortfactory/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@shortfactory/cost-control':
+        specifier: workspace:*
+        version: link:../../packages/cost-control
+      '@shortfactory/database':
+        specifier: workspace:*
+        version: link:../../packages/database
       '@shortfactory/logger':
         specifier: workspace:*
         version: link:../../packages/logger

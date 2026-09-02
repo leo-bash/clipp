@@ -52,6 +52,11 @@ export const configSchema = z.object({
   LLM_API_KEY: z.string().default(""),
   TTS_PROVIDER: z.string().default("disabled"),
   TTS_API_KEY: z.string().default(""),
+  TTS_VOICE_ID: z.string().default(""),
+  TTS_MODEL_ID: z.string().default("eleven_multilingual_v2"),
+  TTS_OUTPUT_FORMAT: z.string().default("mp3_44100_128"),
+  TTS_OUTPUT_ROOT: z.string().default("./.data/tts"),
+  TTS_COST_PER_1000_CHARS_EUR: z.coerce.number().nonnegative().default(0.30),
   TRANSCRIPTION_PROVIDER: z.string().default("mock"),
   TRANSCRIPTION_API_KEY: z.string().default("")
 });
