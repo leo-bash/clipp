@@ -124,6 +124,21 @@ services:
       redis:
         condition: service_healthy
 
+  tts-worker:
+    build:
+      context: .
+      dockerfile: infrastructure/docker/Dockerfile
+    command: ["pnpm", "--filter", "@shortfactory/tts-worker", "dev"]
+    environment:
+      NODE_ENV: development
+      QUEUE_MODE: redis
+      REDIS_URL: redis://redis:6379
+      TTS_PROVIDER: ${TTS_PROVIDER:-disabled}
+      TTS_API_KEY: ${TTS_API_KEY:-}
+    depends_on:
+      redis:
+        condition: service_healthy
+
   analysis-worker:
     build:
       context: .

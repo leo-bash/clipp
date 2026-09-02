@@ -111,6 +111,7 @@ export async function buildApp(config: AppConfig, supplied?: Partial<AppDependen
       Promise.resolve({ name: "storage", status: config.R2_ENDPOINT && config.R2_BUCKET ? "ok" : "degraded", mode: "mock", detail: config.R2_ENDPOINT && config.R2_BUCKET ? "R2/S3-compatible storage configured" : "local storage adapter active" } as const),
       Promise.resolve({ name: "llm", status: "degraded", mode: "mock", detail: "deterministic adapter active; configure a paid provider before production" } as const),
       Promise.resolve({ name: "tts", status: "degraded", mode: "mock", detail: "TTS is disabled until a provider is configured" } as const),
+      Promise.resolve({ name: "workers", status: "degraded", mode: dependencies.queue.mode, detail: "worker liveness is supervised by queue consumers; inspect worker logs" } as const),
       Promise.resolve({ name: "platforms", status: "degraded", mode: "mock", detail: "platform credentials are validated at publish time" } as const)
     ]);
     const status = statusFromChecks(checks);

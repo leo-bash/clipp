@@ -5,7 +5,7 @@ import OperationsPanel from "./OperationsPanel";
 
 export const dynamic = "force-dynamic";
 
-const services = ["API", "Postgres", "Redis", "Storage", "FFmpeg", "LLM", "TTS", "YouTube", "TikTok", "Instagram"] as const;
+const services = ["API", "Postgres", "Redis", "Storage", "FFmpeg", "Workers", "LLM", "TTS", "YouTube", "TikTok", "Instagram"] as const;
 
 async function getChannels(): Promise<Channel[]> {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";

@@ -871,6 +871,43 @@ importers:
         specifier: ^3.2.4
         version: 3.2.7(@types/node@22.20.1)(supports-color@7.2.0)(tsx@4.23.13)
 
+  workers/tts-worker:
+    dependencies:
+      '@shortfactory/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@shortfactory/logger':
+        specifier: workspace:*
+        version: link:../../packages/logger
+      '@shortfactory/queue':
+        specifier: workspace:*
+        version: link:../../packages/queue
+      '@shortfactory/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@shortfactory/tts':
+        specifier: workspace:*
+        version: link:../../packages/tts
+    devDependencies:
+      '@types/node':
+        specifier: ^22.15.0
+        version: 22.20.1
+      eslint:
+        specifier: ^9.35.0
+        version: 9.39.5(supports-color@7.2.0)
+      tsup:
+        specifier: ^8.5.0
+        version: 8.5.1(postcss@8.5.26)(supports-color@7.2.0)(tsx@4.23.13)(typescript@5.9.3)
+      tsx:
+        specifier: ^4.20.5
+        version: 4.23.13
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@22.20.1)(supports-color@7.2.0)(tsx@4.23.13)
+
   workers/worker-light:
     dependencies:
       '@shortfactory/ai':

@@ -31,6 +31,7 @@ The API never performs heavy FFmpeg work. Render work has a separate worker boun
 - `packages/ai`: Zod-validated analysis/content-plan contracts, bounded retries, deterministic adapters and AI cost meter.
 - `packages/tts`: replaceable TTS contract with pre-generation cost estimation, cache-by-content key, budget gate, deterministic adapter and explicit disabled adapter.
 - `packages/platforms`: common publishing contract, independent mock publishers, timezone-aware scheduler/lock boundary and centralized in-memory/Redis provider rate limiter.
+- `workers/tts-worker`: typed TTS queue consumer with cache-first deterministic local adapter and explicit deferral for unconfigured providers.
 - `packages/analytics`: snapshot collection, PostgreSQL/in-memory stores, overview aggregation and configurable normalized performance score.
 - `packages/orchestrator`: daily target/buffer calculation, centralized pipeline queue scheduling, distributed-lock seam and idempotent job keys.
 - `packages/shared`: cross-package types and error taxonomy.

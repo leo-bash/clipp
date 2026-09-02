@@ -199,5 +199,6 @@ PHASE 14 acceptance criteria are satisfied by the API/platform/queue tests and t
 - [x] Complete the dashboard one-click test pipeline end to end: candidate actions, FFmpeg fixture render, QC, storage preview, review and manual scheduling.
 - [x] Complete typed business processors for every queue consumer: discovery, ingestion/AI, transcription, analysis, planning, render, publishing, analytics, cleanup and orchestration now execute complete payloads or explicitly defer incomplete jobs.
 - [ ] Run Docker Compose, PostgreSQL migration/seed and Redis integration on a host with Docker.
+- [x] Add a dedicated typed TTS queue consumer with deterministic cache-first local behavior.
 
 PHASE 15 remains open until runtime integration checks are complete.

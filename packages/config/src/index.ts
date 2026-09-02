@@ -43,7 +43,13 @@ export const configSchema = z.object({
   TIKTOK_FALLBACK_TO_DRAFT: booleanFromEnv.default("true"),
   INSTAGRAM_ACCESS_TOKEN: z.string().default(""),
   INSTAGRAM_USER_ID: z.string().default(""),
-  INSTAGRAM_API_VERSION: z.string().default("v23.0")
+  INSTAGRAM_API_VERSION: z.string().default("v23.0"),
+  LLM_PROVIDER: z.string().default("mock"),
+  LLM_API_KEY: z.string().default(""),
+  TTS_PROVIDER: z.string().default("disabled"),
+  TTS_API_KEY: z.string().default(""),
+  TRANSCRIPTION_PROVIDER: z.string().default("mock"),
+  TRANSCRIPTION_API_KEY: z.string().default("")
 });
 
 export type AppConfig = z.infer<typeof configSchema>;
