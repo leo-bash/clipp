@@ -12,7 +12,8 @@
 | 6 | Transcription, analysis and content planning adapters | Completed |
 | 7 | Review dashboard | Completed |
 | 8 | Mock publishers and scheduler | Completed |
-| 9–14 | Official platform adapters, analytics, orchestrator and production hardening | Pending |
+| 9 | Official YouTube adapter | Completed |
+| 10–14 | TikTok, Instagram, analytics, orchestrator and production hardening | Pending |
 
 ## Phase 1 exit criteria
 
@@ -56,6 +57,10 @@ The dashboard has an operator review queue backed entirely by API calls. An oper
 
 `@shortfactory/platforms` defines `PlatformPublisher` with account validation, cost estimation, publish, status and analytics methods. YouTube, TikTok and Instagram mocks publish independently with fake URLs. `PublishingScheduler` requires an approved, non-blocked video, uses configured channel timezone/slots and a lock boundary, and reports partial failure without losing successful results. The publisher worker imports the scheduler and Compose includes it.
 
+## Phase 9 verification
+
+`YouTubePublisher` implements OAuth authorization-code exchange, refresh-token rotation, credential validation, official `videos.insert`-compatible resumable upload initialization plus upload, status and statistics retrieval. It defaults to `private`, only sends `publishAt` for future private scheduling, requires an absolute media file path, and returns configuration/upload failures without browser automation. Tests verify the official upload sequence and private default.
+
 ## Next milestone
 
-Phase 9 will add the official YouTube adapter boundary with OAuth, resumable-upload planning and safe private/unlisted defaults.
+Phase 10 will add the official TikTok Content Posting API boundary with direct-post/draft configuration and status polling.

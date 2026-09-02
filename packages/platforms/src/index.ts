@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { AppError, type Platform } from "@shortfactory/shared";
 
-export interface PublishInput { videoId: string; title: string; description: string; storageKey?: string; scheduledAt: string; }
+export interface PublishInput { videoId: string; title: string; description: string; storageKey?: string; filePath?: string; scheduledAt: string; privacyStatus?: "private" | "unlisted" | "public"; }
 export interface AccountValidation { ok: boolean; detail?: string; }
 export interface PublishResult { platform: Platform; status: "SUCCESS" | "FAILED"; externalPostId?: string; externalUrl?: string; error?: string; }
 export interface PlatformStatus { externalPostId: string; status: "PROCESSING" | "PUBLISHED" | "FAILED"; }
@@ -29,6 +31,94 @@ export class YouTubeMockPublisher extends MockPlatformPublisher { public constru
 export class TikTokMockPublisher extends MockPlatformPublisher { public constructor(options?: { failPublishes?: boolean }) { super("TIKTOK", options); } }
 export class InstagramMockPublisher extends MockPlatformPublisher { public constructor(options?: { failPublishes?: boolean }) { super("INSTAGRAM", options); } }
 
+export interface YouTubePublisherOptions {
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string;
+  accessToken?: string;
+  refreshToken?: string;
+  defaultPrivacyStatus?: "private" | "unlisted" | "public";
+  tokenUrl?: string;
+  apiBaseUrl?: string;
+  uploadBaseUrl?: string;
+}
+
+export class YouTubePublisher implements PlatformPublisher {
+  public readonly platform = "YOUTUBE" as const;
+  private accessToken?: string;
+  private refreshTokenValue?: string;
+  private readonly options: Required<Pick<YouTubePublisherOptions, "clientId" | "clientSecret" | "redirectUri" | "defaultPrivacyStatus" | "tokenUrl" | "apiBaseUrl" | "uploadBaseUrl">>;
+
+  public constructor(options: YouTubePublisherOptions) {
+    this.options = { clientId: options.clientId, clientSecret: options.clientSecret, redirectUri: options.redirectUri, defaultPrivacyStatus: options.defaultPrivacyStatus ?? "private", tokenUrl: options.tokenUrl ?? "https://oauth2.googleapis.com/token", apiBaseUrl: options.apiBaseUrl ?? "https://www.googleapis.com/youtube/v3", uploadBaseUrl: options.uploadBaseUrl ?? "https://www.googleapis.com/upload/youtube/v3" };
+    this.accessToken = options.accessToken;
+    this.refreshTokenValue = options.refreshToken;
+  }
+
+  public async connectAccount(code: string): Promise<{ accessToken: string; refreshToken?: string }> {
+    const response = await fetch(this.options.tokenUrl, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ code, client_id: this.options.clientId, client_secret: this.options.clientSecret, redirect_uri: this.options.redirectUri, grant_type: "authorization_code" }) });
+    const payload = await jsonOrError(response, "YouTube OAuth exchange failed") as { access_token?: string; refresh_token?: string };
+    if (!payload.access_token) throw new Error("YouTube OAuth response did not contain an access token");
+    this.accessToken = payload.access_token;
+    this.refreshTokenValue = payload.refresh_token ?? this.refreshTokenValue;
+    return { accessToken: this.accessToken, refreshToken: this.refreshTokenValue };
+  }
+
+  public async refreshToken(): Promise<string> {
+    if (!this.refreshTokenValue) throw new Error("YouTube refresh token is not configured");
+    const response = await fetch(this.options.tokenUrl, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ refresh_token: this.refreshTokenValue, client_id: this.options.clientId, client_secret: this.options.clientSecret, grant_type: "refresh_token" }) });
+    const payload = await jsonOrError(response, "YouTube token refresh failed") as { access_token?: string };
+    if (!payload.access_token) throw new Error("YouTube refresh response did not contain an access token");
+    this.accessToken = payload.access_token;
+    return this.accessToken;
+  }
+
+  public async validateCredentials(): Promise<AccountValidation> {
+    if (!this.accessToken) return { ok: false, detail: "YOUTUBE_API_NOT_CONFIGURED" };
+    const response = await fetch(`${this.options.apiBaseUrl}/channels?part=id&mine=true`, { headers: this.authHeaders() });
+    if (!response.ok) return { ok: false, detail: `YOUTUBE_CREDENTIALS_INVALID_${response.status}` };
+    const payload = await response.json() as { items?: unknown[] };
+    return { ok: Boolean(payload.items?.length), detail: payload.items?.length ? "YouTube account validated" : "YOUTUBE_CHANNEL_NOT_FOUND" };
+  }
+
+  public async validateAccount(): Promise<AccountValidation> { try { return await this.validateCredentials(); } catch (error) { return { ok: false, detail: error instanceof Error ? error.message : "YOUTUBE_VALIDATION_FAILED" }; } }
+  public async estimateCost(input: PublishInput): Promise<number> { void input; return 0; }
+
+  public async publish(input: PublishInput): Promise<PublishResult> {
+    if (!this.accessToken) return { platform: this.platform, status: "FAILED", error: "YOUTUBE_API_NOT_CONFIGURED" };
+    if (!input.filePath || !path.isAbsolute(input.filePath)) return { platform: this.platform, status: "FAILED", error: "YOUTUBE_FILE_PATH_REQUIRED" };
+    try {
+      const bytes = await readFile(input.filePath);
+      const privacyStatus = input.privacyStatus ?? this.options.defaultPrivacyStatus;
+      const status: Record<string, unknown> = { privacyStatus, selfDeclaredMadeForKids: false };
+      if (privacyStatus === "private" && new Date(input.scheduledAt).getTime() > Date.now()) status.publishAt = input.scheduledAt;
+      const initiate = await fetch(`${this.options.uploadBaseUrl}/videos?part=snippet,status`, { method: "POST", headers: { ...this.authHeaders(), "content-type": "application/json; charset=UTF-8", "x-upload-content-length": String(bytes.byteLength), "x-upload-content-type": "video/mp4" }, body: JSON.stringify({ snippet: { title: input.title, description: input.description }, status }) });
+      const uploadUrl = initiate.headers.get("location");
+      if (!initiate.ok || !uploadUrl) throw new Error(`YouTube resumable upload initialization failed (${initiate.status})`);
+      const uploaded = await fetch(uploadUrl, { method: "PUT", headers: { ...this.authHeaders(), "content-type": "video/mp4", "content-length": String(bytes.byteLength) }, body: bytes });
+      const payload = await jsonOrError(uploaded, "YouTube video upload failed") as { id?: string };
+      if (!payload.id) throw new Error("YouTube upload response did not contain a video ID");
+      return { platform: this.platform, status: "SUCCESS", externalPostId: payload.id, externalUrl: `https://www.youtube.com/watch?v=${payload.id}` };
+    } catch (error) { return { platform: this.platform, status: "FAILED", error: error instanceof Error ? error.message : "YOUTUBE_UPLOAD_FAILED" }; }
+  }
+
+  public async getStatus(externalPostId: string): Promise<PlatformStatus> {
+    const response = await fetch(`${this.options.apiBaseUrl}/videos?part=status&id=${encodeURIComponent(externalPostId)}`, { headers: this.authHeaders() });
+    const payload = await jsonOrError(response, "YouTube status request failed") as { items?: Array<{ status?: { uploadStatus?: string } }> };
+    const uploadStatus = payload.items?.[0]?.status?.uploadStatus;
+    return { externalPostId, status: uploadStatus === "processed" ? "PUBLISHED" : uploadStatus === "failed" ? "FAILED" : "PROCESSING" };
+  }
+
+  public async getAnalytics(externalPostId: string): Promise<AnalyticsSnapshot> {
+    const response = await fetch(`${this.options.apiBaseUrl}/videos?part=statistics&id=${encodeURIComponent(externalPostId)}`, { headers: this.authHeaders() });
+    const payload = await jsonOrError(response, "YouTube analytics request failed") as { items?: Array<{ statistics?: { viewCount?: string; likeCount?: string; commentCount?: string } }> };
+    const statistics = payload.items?.[0]?.statistics;
+    return { views: Number(statistics?.viewCount ?? 0), likes: Number(statistics?.likeCount ?? 0), comments: Number(statistics?.commentCount ?? 0), shares: 0 };
+  }
+
+  private authHeaders(): Record<string, string> { return this.accessToken ? { authorization: `Bearer ${this.accessToken}` } : {}; }
+}
+
 export interface SchedulerChannel { id: string; timezone: string; publishingSlots: string[]; }
 export interface SchedulableVideo { id: string; status: string; rightsStatus: string; }
 export interface ScheduledPublication extends PublishResult { scheduledAt: string; }
@@ -44,7 +134,7 @@ export class InMemoryDistributedLock implements DistributedLock {
 export class PublishingScheduler {
   public constructor(private readonly publishers: PlatformPublisher[], private readonly lock: DistributedLock = new InMemoryDistributedLock(), private readonly clock: () => Date = () => new Date()) {}
 
-  public async publishApprovedVideo(video: SchedulableVideo, channel: SchedulerChannel, metadata: { title: string; description: string; storageKey?: string }, scheduledAt = nextPublishingSlot(this.clock(), channel.timezone, channel.publishingSlots)): Promise<ScheduleResult> {
+  public async publishApprovedVideo(video: SchedulableVideo, channel: SchedulerChannel, metadata: { title: string; description: string; storageKey?: string; filePath?: string; privacyStatus?: PublishInput["privacyStatus"] }, scheduledAt = nextPublishingSlot(this.clock(), channel.timezone, channel.publishingSlots)): Promise<ScheduleResult> {
     if (video.status !== "APPROVED") throw new AppError("VIDEO_NOT_APPROVED", "only approved videos can be scheduled");
     if (video.rightsStatus === "BLOCKED") throw new AppError("RIGHTS_BLOCKED", "blocked videos cannot be published");
     const lockKey = `publication:${video.id}`;
@@ -52,12 +142,17 @@ export class PublishingScheduler {
     try {
       const results = await Promise.all(this.publishers.map(async (publisher) => {
         const account = await publisher.validateAccount();
-        if (!account.ok) return { platform: publisher.platform, status: "FAILED", error: account.detail ?? "account unavailable", scheduledAt } satisfies ScheduledPublication;
-        return { ...await publisher.publish({ videoId: video.id, title: metadata.title, description: metadata.description, storageKey: metadata.storageKey, scheduledAt }), scheduledAt };
+        if (!account.ok) return { platform: publisher.platform, status: "FAILED" as const, error: account.detail ?? "account unavailable", scheduledAt } satisfies ScheduledPublication;
+        try { return { ...await publisher.publish({ videoId: video.id, title: metadata.title, description: metadata.description, storageKey: metadata.storageKey, filePath: metadata.filePath, privacyStatus: metadata.privacyStatus, scheduledAt }), scheduledAt }; } catch (error) { return { platform: publisher.platform, status: "FAILED" as const, error: error instanceof Error ? error.message : "publisher failed", scheduledAt }; }
       }));
       return { status: results.every((result) => result.status === "SUCCESS") ? "SUCCESS" : "PARTIAL_FAILURE", scheduledAt, publications: results };
     } finally { await this.lock.release(lockKey); }
   }
+}
+
+async function jsonOrError(response: Response, message: string): Promise<unknown> {
+  if (!response.ok) throw new Error(`${message} (${response.status})`);
+  return response.json();
 }
 
 function nextPublishingSlot(now: Date, timezone: string, slots: string[]): string {

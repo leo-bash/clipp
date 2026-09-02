@@ -1,6 +1,6 @@
 # ShortFactory — TODO
 
-## Current phase: PHASE 9 — YOUTUBE ADAPTER
+## Current phase: PHASE 10 — TIKTOK ADAPTER
 
 - [x] Analyze repository and environment.
 - [x] Read the complete project specification.
@@ -97,6 +97,18 @@ PHASE 7 acceptance criteria are satisfied by API coverage and the dashboard prod
 
 PHASE 8 acceptance criteria are satisfied by the scheduler tests and full local check suite. No external platform account or browser automation is used.
 
+## PHASE 9 result
+
+- [x] Add official YouTube OAuth code exchange and refresh-token methods.
+- [x] Add account credential validation through the YouTube Data API.
+- [x] Add resumable upload initialization and file transfer through official endpoints.
+- [x] Default uploads to private and support future private scheduling.
+- [x] Add official status and statistics retrieval.
+- [x] Require absolute file paths and keep credentials out of logs/source control.
+- [x] Test the official upload request sequence with a mocked HTTP boundary.
+
+PHASE 9 acceptance criteria are satisfied by the adapter tests and full local check suite. Real YouTube credentials are intentionally not configured; no public upload is attempted.
+
 PHASE 4 acceptance criteria are satisfied by unit/API coverage. Rights decisions are explicit and do not assume that editing makes third-party content legal.
 
 ## Deferred to later phases
@@ -109,4 +121,5 @@ PHASE 4 acceptance criteria are satisfied by unit/API coverage. Rights decisions
 - [x] AI/transcription/planning providers (Phase 6).
 - [x] Review dashboard (Phase 7).
 - [x] Mock scheduling and publishing (Phase 8).
-- [ ] Official publishing and analytics (Phases 9–12).
+- [x] Official YouTube publishing boundary (Phase 9).
+- [ ] TikTok, Instagram and analytics (Phases 10–12).

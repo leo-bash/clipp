@@ -46,7 +46,7 @@ The light worker owns the candidate AI boundary. `AiPipeline` passes candidate m
 
 The dashboard review queue is the operator boundary: it reads videos through the API and exposes metadata editing, rerender, approve and reject actions. It never accesses PostgreSQL directly. Rerender requests pass through the API rights gate and increment `renderVersion` so a retry cannot silently create an uncontrolled duplicate.
 
-The publisher worker schedules approved videos through `PublishingScheduler`. YouTube, TikTok and Instagram are independent publisher instances; their results are retained separately and aggregate to `SUCCESS` or `PARTIAL_FAILURE`. Mock publishers return fake URLs and are the only publishing adapters enabled in the current phase.
+The publisher worker schedules approved videos through `PublishingScheduler`. YouTube, TikTok and Instagram are independent publisher instances; their results are retained separately and aggregate to `SUCCESS` or `PARTIAL_FAILURE`. Mock publishers return fake URLs. The official YouTube adapter uses OAuth and the Google resumable-upload HTTP flow only; credentials are runtime-only and its safe default is private.
 
 ## Local modes
 
