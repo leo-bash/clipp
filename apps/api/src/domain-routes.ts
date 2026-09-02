@@ -25,6 +25,7 @@ const rejectSchema = z.object({ reason: z.string().trim().min(1).max(1000) });
 const budgetKeySchema = z.object({ scope: z.string().trim().min(1).max(40).default("GLOBAL"), scopeId: z.string().trim().min(1).max(120).default("global"), period: z.string().trim().regex(/^\d{4}-\d{2}$/).default(`${new Date().getUTCFullYear()}-${String(new Date().getUTCMonth() + 1).padStart(2, "0")}`) });
 const reservationSchema = budgetKeySchema.extend({ idempotencyKey: z.string().trim().min(1).max(200), amount: z.number().positive(), provider: z.string().trim().min(1).max(80), service: z.string().trim().min(1).max(80), operation: z.string().trim().min(1).max(120), channelId: z.string().uuid().optional(), candidateId: z.string().uuid().optional(), videoId: z.string().uuid().optional() });
 const commitSchema = z.object({ actualAmount: z.number().nonnegative(), provider: z.string().trim().min(1).max(80), service: z.string().trim().min(1).max(80), operation: z.string().trim().min(1).max(120), quantity: z.number().positive(), unit: z.string().trim().min(1).max(40), estimatedCostEur: z.number().nonnegative(), channelId: z.string().uuid().optional(), candidateId: z.string().uuid().optional(), videoId: z.string().uuid().optional() });
+const controlsSchema = z.object({ stopAllPublishing: z.boolean().optional(), stopRendering: z.boolean().optional(), stopPaidApis: z.boolean().optional() }).refine((value) => Object.keys(value).length > 0, "at least one control is required");
 
 type Params = { id: string };
 
@@ -32,7 +33,7 @@ function parsePage(query: unknown): PageParams { return pageSchema.parse(query);
 function body<T>(value: unknown, schema: z.ZodType<T>): T { return schema.parse(value); }
 function notFound<T>(value: T | undefined): T { if (!value) throw new Error("NOT_FOUND"); return value; }
 
-export async function registerDomainRoutes(server: FastifyInstance, store: DomainStore, costControl: CostControlService, rightsGate: RightsGate, prefix = "", controls: OperationalControls = { stopAllPublishing: false, stopRendering: false, stopPaidApis: false }): Promise<void> {
+export async function registerDomainRoutes(server: FastifyInstance, store: DomainStore, costControl: CostControlService, rightsGate: RightsGate, prefix = "", controls: OperationalControls = { stopAllPublishing: false, stopRendering: false, stopPaidApis: false }, authMode: "disabled" | "api-key" = "disabled", adminApiKey = ""): Promise<void> {
   server.get(`${prefix}/channels`, async (request) => store.listChannels(parsePage(request.query)));
   server.post(`${prefix}/channels`, async (request) => store.createChannel(body(request.body, channelSchema) as CreateChannelInput));
   server.get<{ Params: Params }>(`${prefix}/channels/:id`, async (request) => notFound(await store.getChannel(idSchema.parse(request.params).id)));
@@ -84,6 +85,12 @@ export async function registerDomainRoutes(server: FastifyInstance, store: Domai
   server.post(`${prefix}/costs`, async (request) => store.createCost(body(request.body, costSchema) as CreateCostInput));
   server.get(`${prefix}/budgets`, async (request) => store.listBudgets(parsePage(request.query)));
   server.post(`${prefix}/budgets`, async (request) => store.createBudget(body(request.body, budgetSchema) as CreateBudgetInput));
+  server.get(`${prefix}/settings/controls`, async () => ({ ...controls }));
+  server.patch(`${prefix}/settings/controls`, async (request) => {
+    if (authMode === "api-key" && request.headers["x-api-key"] !== adminApiKey) throw new AppError("FORBIDDEN", "admin API key is required for operational settings");
+    Object.assign(controls, body(request.body, controlsSchema));
+    return { ...controls };
+  });
   server.get(`${prefix}/costs/forecast`, async (request) => {
     const forecast = await costControl.getForecast(body(request.query, budgetKeySchema) as BudgetKey);
     if (forecast.forecastMonthEndEur > forecast.budgetEur * 1.1) {

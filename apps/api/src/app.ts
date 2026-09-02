@@ -89,8 +89,8 @@ export async function buildApp(config: AppConfig, supplied?: Partial<AppDependen
     return reply.code(500).send({ error: "INTERNAL_ERROR" });
   });
 
-  await registerDomainRoutes(server, dependencies.database.domain, dependencies.costControl, dependencies.rightsGate, "", controls);
-  await registerDomainRoutes(server, dependencies.database.domain, dependencies.costControl, dependencies.rightsGate, "/api/v1", controls);
+  await registerDomainRoutes(server, dependencies.database.domain, dependencies.costControl, dependencies.rightsGate, "", controls, config.AUTH_MODE, config.ADMIN_API_KEY);
+  await registerDomainRoutes(server, dependencies.database.domain, dependencies.costControl, dependencies.rightsGate, "/api/v1", controls, config.AUTH_MODE, config.ADMIN_API_KEY);
   await registerAnalyticsRoutes(server, dependencies.analyticsStore);
   await registerAnalyticsRoutes(server, dependencies.analyticsStore, "/api/v1");
   await registerPipelineRoutes(server, dependencies.database.domain, dependencies.storage, "/api/v1");

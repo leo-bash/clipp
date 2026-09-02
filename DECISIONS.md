@@ -92,3 +92,7 @@ The TTS boundary keeps deterministic and disabled providers available, and adds 
 ### Typed experiment metadata in video metadata
 
 Video experiment fields are represented by a shared TypeScript contract and persisted inside the existing versioned metadata JSON rather than adding a migration for each new editorial dimension. Analytics aggregates available `formatId` values by channel and format, so A/B learning compares distinct videos without creating duplicate publications.
+
+### API-backed operator configuration
+
+The dashboard reads analytics, costs and platform accounts through API resources and writes channel production settings through the validated channel endpoint. Global kill switches have a separate admin-only runtime endpoint; they intentionally do not persist across restarts, so deployment configuration remains the durable safety default and secrets never enter the browser or database.

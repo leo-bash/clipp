@@ -47,6 +47,19 @@ describe("api foundation", () => {
     expect(viewerMutation.statusCode).toBe(403);
   });
 
+  it("restricts operational kill-switch changes to the admin key", async () => {
+    const app = await buildApp(loadConfig({ AUTH_MODE: "api-key", ADMIN_API_KEY: "admin-key-123456789", EDITOR_API_KEY: "editor-key-123456789" }));
+    apps.push(app);
+    const before = await app.server.inject({ method: "GET", url: "/api/v1/settings/controls", headers: { "x-api-key": "editor-key-123456789" } });
+    const forbidden = await app.server.inject({ method: "PATCH", url: "/api/v1/settings/controls", headers: { "x-api-key": "editor-key-123456789" }, payload: { stopRendering: true } });
+    const changed = await app.server.inject({ method: "PATCH", url: "/api/v1/settings/controls", headers: { "x-api-key": "admin-key-123456789" }, payload: { stopRendering: true } });
+
+    expect(before.statusCode).toBe(200);
+    expect(forbidden.statusCode).toBe(400);
+    expect(forbidden.json<{ error: string }>().error).toBe("FORBIDDEN");
+    expect(changed.json<{ stopRendering: boolean }>().stopRendering).toBe(true);
+  });
+
   it("reports explicit degraded local adapters without claiming real dependencies", async () => {
     const app = await buildApp(loadConfig({}));
     apps.push(app);
