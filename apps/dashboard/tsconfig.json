@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "preserve",
+    "incremental": true,
+    "plugins": [{ "name": "next" }],
+    "moduleResolution": "Bundler",
+    "allowJs": false,
+    "noEmit": true
+  },
+  "include": ["next-env.d.ts", ".next/types/**/*.ts", "src/**/*.tsx", "src/**/*.ts"],
+  "exclude": ["node_modules"]
+}

@@ -1,0 +1,11 @@
+:root { color-scheme: dark; --bg: #101114; --panel: #191b21; --text: #f4f5f7; --muted: #a5a9b5; --accent: #8df0c8; }
+* { box-sizing: border-box; }
+body { margin: 0; background: radial-gradient(circle at top right, #243b35 0, var(--bg) 40%); color: var(--text); font-family: Arial, sans-serif; }
+.shell { margin: 0 auto; max-width: 920px; padding: 12vh 2rem; }
+.eyebrow { color: var(--accent); font-size: .75rem; letter-spacing: .18em; }
+h1 { max-width: 680px; font-size: clamp(2.8rem, 8vw, 6rem); line-height: .95; margin: 1.2rem 0; }
+.lede { color: var(--muted); font-size: 1.15rem; max-width: 520px; line-height: 1.6; }
+.status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 1rem; margin-top: 4rem; }
+.status-card { background: color-mix(in srgb, var(--panel) 88%, transparent); border: 1px solid #2c3038; border-radius: 14px; display: grid; gap: .55rem; padding: 1.2rem; }
+.status-card small { color: var(--muted); }
+.status-dot { background: var(--accent); border-radius: 999px; box-shadow: 0 0 14px var(--accent); height: 9px; width: 9px; }
