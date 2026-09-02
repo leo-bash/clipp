@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@shortfactory/analytics": "workspace:*",
     "@fastify/cors": "^11.0.2",
     "@fastify/helmet": "^13.0.2",
     "@shortfactory/config": "workspace:*",

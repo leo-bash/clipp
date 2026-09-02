@@ -3,6 +3,7 @@ import helmet from "@fastify/helmet";
 import Fastify, { type FastifyInstance } from "fastify";
 import type { AppConfig } from "@shortfactory/config";
 import { createDatabase, type DatabaseClient } from "@shortfactory/database";
+import { createPostgresAnalyticsSnapshotStore, InMemoryAnalyticsSnapshotStore, type AnalyticsSnapshotStore } from "@shortfactory/analytics";
 import { createPostgresCostControlLedger, CostControlService, InMemoryCostControlLedger, type CostControlService as CostControlServiceType } from "@shortfactory/cost-control";
 import { RightsGate } from "@shortfactory/rights";
 import { createLogger } from "@shortfactory/logger";
@@ -10,12 +11,14 @@ import { createQueue, type QueueClient } from "@shortfactory/queue";
 import type { DependencyHealth, HealthStatus, ReadinessResponse } from "@shortfactory/shared";
 import { AppError } from "@shortfactory/shared";
 import { registerDomainRoutes, isRequestValidationError } from "./domain-routes.js";
+import { registerAnalyticsRoutes } from "./analytics-routes.js";
 
 export interface AppDependencies {
   database: DatabaseClient;
   queue: QueueClient;
   costControl: CostControlServiceType;
   rightsGate: RightsGate;
+  analyticsStore: AnalyticsSnapshotStore;
 }
 
 export interface ShortFactoryApp {
@@ -40,7 +43,8 @@ export async function buildApp(config: AppConfig, supplied?: Partial<AppDependen
       dependenciesLedger(database),
       { monthlyBudgetEur: config.MONTHLY_BUDGET_EUR }
     ),
-    rightsGate: supplied?.rightsGate ?? new RightsGate()
+    rightsGate: supplied?.rightsGate ?? new RightsGate(),
+    analyticsStore: supplied?.analyticsStore ?? createAnalyticsStore(database)
   };
   await dependencies.database.domain.ensureSeedData();
   // Fastify's logger generic is intentionally narrower than Pino's runtime logger.
@@ -59,6 +63,8 @@ export async function buildApp(config: AppConfig, supplied?: Partial<AppDependen
 
   await registerDomainRoutes(server, dependencies.database.domain, dependencies.costControl, dependencies.rightsGate);
   await registerDomainRoutes(server, dependencies.database.domain, dependencies.costControl, dependencies.rightsGate, "/api/v1");
+  await registerAnalyticsRoutes(server, dependencies.analyticsStore);
+  await registerAnalyticsRoutes(server, dependencies.analyticsStore, "/api/v1");
 
   server.get("/health", async () => ({
     status: "ok",
@@ -112,4 +118,9 @@ export async function buildApp(config: AppConfig, supplied?: Partial<AppDependen
 function dependenciesLedger(database: DatabaseClient) {
   const pool = database.getPostgresPool();
   return pool ? createPostgresCostControlLedger(pool) : new InMemoryCostControlLedger();
+}
+
+function createAnalyticsStore(database: DatabaseClient): AnalyticsSnapshotStore {
+  const pool = database.getPostgresPool();
+  return pool ? createPostgresAnalyticsSnapshotStore(pool) : new InMemoryAnalyticsSnapshotStore();
 }

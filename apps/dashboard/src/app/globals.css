@@ -9,6 +9,10 @@ h1 { max-width: 680px; font-size: clamp(2.8rem, 8vw, 6rem); line-height: .95; ma
 .status-card { background: color-mix(in srgb, var(--panel) 88%, transparent); border: 1px solid #2c3038; border-radius: 14px; display: grid; gap: .55rem; padding: 1.2rem; }
 .status-card small { color: var(--muted); }
 .status-dot { background: var(--accent); border-radius: 999px; box-shadow: 0 0 14px var(--accent); height: 9px; width: 9px; }
+.analytics-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: .75rem; margin-top: 1rem; }
+.analytics-strip div { background: #15171c; border: 1px solid #2c3038; border-radius: 10px; display: grid; gap: .3rem; padding: .9rem 1rem; }
+.analytics-strip small { color: var(--muted); font-size: .7rem; letter-spacing: .12em; }
+.analytics-strip strong { font-size: 1.4rem; }
 .channels { border-top: 1px solid #2c3038; margin-top: 5rem; padding-top: 2rem; }
 .channels h2 { font-size: clamp(1.5rem, 4vw, 2.5rem); margin: .25rem 0 1.5rem; }
 .muted, .channel-row small { color: var(--muted); }

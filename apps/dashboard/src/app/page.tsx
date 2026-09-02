@@ -28,9 +28,19 @@ async function getVideos(): Promise<Video[]> {
   } catch { return []; }
 }
 
+async function getAnalytics(): Promise<{ snapshotCount: number; totals: { views: number; likes: number; comments: number; shares: number } }> {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+  try {
+    const response = await fetch(`${apiUrl}/api/v1/analytics/overview`);
+    if (!response.ok) return { snapshotCount: 0, totals: { views: 0, likes: 0, comments: 0, shares: 0 } };
+    return await response.json() as { snapshotCount: number; totals: { views: number; likes: number; comments: number; shares: number } };
+  } catch { return { snapshotCount: 0, totals: { views: 0, likes: 0, comments: 0, shares: 0 } }; }
+}
+
 export default async function Home(): Promise<React.JSX.Element> {
   const channels = await getChannels();
   const videos = await getVideos();
+  const analytics = await getAnalytics();
 
   return (
     <main className="shell">
@@ -45,6 +55,12 @@ export default async function Home(): Promise<React.JSX.Element> {
             <small>{service === "FFmpeg" ? "local capability" : "foundation ready"}</small>
           </div>
         ))}
+      </section>
+      <section className="analytics-strip" aria-label="analytics overview">
+        <div><small>SNAPSHOTS</small><strong>{analytics.snapshotCount}</strong></div>
+        <div><small>VIEWS</small><strong>{analytics.totals.views}</strong></div>
+        <div><small>LIKES</small><strong>{analytics.totals.likes}</strong></div>
+        <div><small>SHARES</small><strong>{analytics.totals.shares}</strong></div>
       </section>
       <section className="channels" aria-label="configured channels">
         <div>

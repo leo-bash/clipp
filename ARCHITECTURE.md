@@ -33,6 +33,7 @@ The API never performs heavy FFmpeg work. Render work has a separate worker boun
 - `packages/ai`: Zod-validated analysis/content-plan contracts, bounded retries, deterministic adapters and AI cost meter.
 - `packages/tts`: replaceable TTS contract with an explicit disabled adapter.
 - `packages/platforms`: common publishing contract, independent mock publishers and timezone-aware scheduler/lock boundary.
+- `packages/analytics`: snapshot collection, PostgreSQL/in-memory stores, overview aggregation and configurable normalized performance score.
 - `packages/shared`: cross-package types and error taxonomy.
 - `infrastructure`: Docker Compose and future deployment scripts.
 
@@ -47,6 +48,8 @@ The light worker owns the candidate AI boundary. `AiPipeline` passes candidate m
 The dashboard review queue is the operator boundary: it reads videos through the API and exposes metadata editing, rerender, approve and reject actions. It never accesses PostgreSQL directly. Rerender requests pass through the API rights gate and increment `renderVersion` so a retry cannot silently create an uncontrolled duplicate.
 
 The publisher worker schedules approved videos through `PublishingScheduler`. YouTube, TikTok and Instagram are independent publisher instances; their results are retained separately and aggregate to `SUCCESS` or `PARTIAL_FAILURE`. Mock publishers return fake URLs. The official YouTube adapter uses OAuth and the Google resumable-upload HTTP flow only; credentials are runtime-only and its safe default is private. The official TikTok adapter uses OAuth plus Content Posting API Direct Post or Upload-to-Draft mode; it has no browser-login fallback. The official Instagram adapter uses the Meta Graph container → status → media_publish flow and reports `NEEDS_CONFIGURATION` when the professional account/app prerequisites are absent.
+
+The analytics worker collects platform snapshots independently and persists them through the analytics store. Performance scoring is normalized and configurable; rights remain an absolute gate, so `BLOCKED` content scores zero regardless of performance.
 
 ## Local modes
 

@@ -93,4 +93,12 @@ describe("api foundation", () => {
     expect(rerendered.json<{ status: string; renderVersion: number }>()).toMatchObject({ status: "RENDERING", renderVersion: 2 });
     expect(approved.json<{ status: string }>().status).toBe("APPROVED");
   });
+
+  it("exposes an analytics overview without direct dashboard database access", async () => {
+    const app = await buildApp(loadConfig({}));
+    apps.push(app);
+    const response = await app.server.inject({ method: "GET", url: "/api/v1/analytics/overview" });
+    expect(response.statusCode).toBe(200);
+    expect(response.json<{ snapshotCount: number; totals: { views: number } }>()).toMatchObject({ snapshotCount: 0, totals: { views: 0 } });
+  });
 });

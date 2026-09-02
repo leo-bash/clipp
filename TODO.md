@@ -1,6 +1,6 @@
 # ShortFactory — TODO
 
-## Current phase: PHASE 12 — ANALYTICS
+## Current phase: PHASE 13 — DAILY ORCHESTRATOR
 
 - [x] Analyze repository and environment.
 - [x] Read the complete project specification.
@@ -133,6 +133,18 @@ PHASE 10 acceptance criteria are satisfied by the adapter tests and full local c
 
 PHASE 11 acceptance criteria are satisfied by the adapter tests and full local check suite. Instagram credentials, professional account status and Meta permissions remain runtime configuration; the adapter never automates login through a browser.
 
+## PHASE 12 result
+
+- [x] Add analytics snapshot contract and in-memory/PostgreSQL stores.
+- [x] Collect platform metrics independently with partial-failure reporting.
+- [x] Add normalized configurable performance score.
+- [x] Keep rights as a hard gate in performance scoring.
+- [x] Add API overview/publication analytics endpoints.
+- [x] Add dashboard overview counters and analytics worker boundary.
+- [x] Test snapshot collection, overview-ready data and scoring.
+
+PHASE 12 acceptance criteria are satisfied by analytics/API tests and the full local check suite. External platform analytics calls remain gated by runtime credentials and official adapter availability.
+
 PHASE 4 acceptance criteria are satisfied by unit/API coverage. Rights decisions are explicit and do not assume that editing makes third-party content legal.
 
 ## Deferred to later phases
@@ -148,4 +160,4 @@ PHASE 4 acceptance criteria are satisfied by unit/API coverage. Rights decisions
 - [x] Official YouTube publishing boundary (Phase 9).
 - [x] Official TikTok publishing boundary (Phase 10).
 - [x] Official Instagram publishing boundary (Phase 11).
-- [ ] Analytics snapshots and scoring (Phase 12).
+- [x] Analytics snapshots and scoring (Phase 12).

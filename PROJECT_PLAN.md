@@ -15,7 +15,8 @@
 | 9 | Official YouTube adapter | Completed |
 | 10 | Official TikTok adapter | Completed |
 | 11 | Official Instagram adapter | Completed |
-| 12–14 | Analytics, orchestrator and production hardening | Pending |
+| 12 | Analytics snapshots and performance scoring | Completed |
+| 13–14 | Daily orchestrator and production hardening | Pending |
 
 ## Phase 1 exit criteria
 
@@ -71,6 +72,10 @@ The dashboard has an operator review queue backed entirely by API calls. An oper
 
 `InstagramPublisher` implements the official Meta/Instagram Reels flow: create a public-URL media container, poll `status_code` until `FINISHED`/failure, then call `media_publish`. It validates configured credentials/account first, exposes basic media insights, and returns `NEEDS_CONFIGURATION` without making calls when prerequisites are absent. Polling attempts and interval are configurable, and tests cover the full container flow and missing-prerequisite path.
 
+## Phase 12 verification
+
+`@shortfactory/analytics` collects minimum platform metrics into the existing PostgreSQL `analytics_snapshots` table or an in-memory adapter, exposes an overview aggregation through `/api/v1/analytics/overview`, and supports publication-specific snapshots. `computePerformanceScore` normalizes views, engagement, completion, follower conversion and editorial signals using configurable weights, while `BLOCKED` rights always return zero. The dashboard displays the overview counters and the analytics worker owns collection.
+
 ## Next milestone
 
-Phase 12 will add analytics snapshots, platform metrics and performance scoring.
+Phase 13 will add the daily orchestrator, buffers and queue-driven job scheduling.
