@@ -202,6 +202,7 @@ PHASE 14 acceptance criteria are satisfied by the API/platform/queue tests and t
 - [x] Add typed per-video experiment metadata and analytics aggregation by channel and format.
 - [x] Show most-successful channel and format on the dashboard home.
 - [x] Persist `RUNNING`/`COMPLETED`/`FAILED` lifecycle audits for every queue consumer.
+- [x] Configure every Compose worker with PostgreSQL, Redis and migration-complete dependencies for durable audits.
 - [ ] Run Docker Compose, PostgreSQL migration/seed and Redis integration on a host with Docker.
 - [x] Add a dedicated typed TTS queue consumer with deterministic cache-first local behavior.
 

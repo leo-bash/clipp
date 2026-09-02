@@ -97,6 +97,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      database-migrate:
+        condition: service_completed_successfully
 
   discovery-worker:
     build:
@@ -105,11 +107,15 @@ services:
     command: ["pnpm", "--filter", "@shortfactory/discovery-worker", "dev"]
     environment:
       NODE_ENV: development
+      DATABASE_MODE: postgres
+      DATABASE_URL: postgresql://shortfactory:shortfactory@postgres:5432/shortfactory
       QUEUE_MODE: redis
       REDIS_URL: redis://redis:6379
     depends_on:
       redis:
         condition: service_healthy
+      database-migrate:
+        condition: service_completed_successfully
 
   transcription-worker:
     build:
@@ -118,11 +124,15 @@ services:
     command: ["pnpm", "--filter", "@shortfactory/transcription-worker", "dev"]
     environment:
       NODE_ENV: development
+      DATABASE_MODE: postgres
+      DATABASE_URL: postgresql://shortfactory:shortfactory@postgres:5432/shortfactory
       QUEUE_MODE: redis
       REDIS_URL: redis://redis:6379
     depends_on:
       redis:
         condition: service_healthy
+      database-migrate:
+        condition: service_completed_successfully
 
   tts-worker:
     build:
@@ -131,13 +141,22 @@ services:
     command: ["pnpm", "--filter", "@shortfactory/tts-worker", "dev"]
     environment:
       NODE_ENV: development
+      DATABASE_MODE: postgres
+      DATABASE_URL: postgresql://shortfactory:shortfactory@postgres:5432/shortfactory
       QUEUE_MODE: redis
       REDIS_URL: redis://redis:6379
       TTS_PROVIDER: ${TTS_PROVIDER:-disabled}
       TTS_API_KEY: ${TTS_API_KEY:-}
+      TTS_VOICE_ID: ${TTS_VOICE_ID:-}
+      TTS_MODEL_ID: ${TTS_MODEL_ID:-eleven_multilingual_v2}
+      TTS_OUTPUT_FORMAT: ${TTS_OUTPUT_FORMAT:-mp3_44100_128}
+      TTS_OUTPUT_ROOT: /app/.data/tts
+      TTS_COST_PER_1000_CHARS_EUR: ${TTS_COST_PER_1000_CHARS_EUR:-0.30}
     depends_on:
       redis:
         condition: service_healthy
+      database-migrate:
+        condition: service_completed_successfully
 
   analysis-worker:
     build:
@@ -146,11 +165,15 @@ services:
     command: ["pnpm", "--filter", "@shortfactory/analysis-worker", "dev"]
     environment:
       NODE_ENV: development
+      DATABASE_MODE: postgres
+      DATABASE_URL: postgresql://shortfactory:shortfactory@postgres:5432/shortfactory
       QUEUE_MODE: redis
       REDIS_URL: redis://redis:6379
     depends_on:
       redis:
         condition: service_healthy
+      database-migrate:
+        condition: service_completed_successfully
 
   script-worker:
     build:
@@ -159,11 +182,15 @@ services:
     command: ["pnpm", "--filter", "@shortfactory/script-worker", "dev"]
     environment:
       NODE_ENV: development
+      DATABASE_MODE: postgres
+      DATABASE_URL: postgresql://shortfactory:shortfactory@postgres:5432/shortfactory
       QUEUE_MODE: redis
       REDIS_URL: redis://redis:6379
     depends_on:
       redis:
         condition: service_healthy
+      database-migrate:
+        condition: service_completed_successfully
 
   worker-render:
     build:
@@ -179,6 +206,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      database-migrate:
+        condition: service_completed_successfully
 
   publisher-worker:
     build:
@@ -187,6 +216,8 @@ services:
     command: ["pnpm", "--filter", "@shortfactory/publisher-worker", "dev"]
     environment:
       NODE_ENV: development
+      DATABASE_MODE: postgres
+      DATABASE_URL: postgresql://shortfactory:shortfactory@postgres:5432/shortfactory
       QUEUE_MODE: redis
       REDIS_URL: redis://redis:6379
       YOUTUBE_CLIENT_ID: ${YOUTUBE_CLIENT_ID:-}
@@ -206,6 +237,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      database-migrate:
+        condition: service_completed_successfully
 
   analytics-worker:
     build:
@@ -214,11 +247,15 @@ services:
     command: ["pnpm", "--filter", "@shortfactory/analytics-worker", "dev"]
     environment:
       NODE_ENV: development
+      DATABASE_MODE: postgres
+      DATABASE_URL: postgresql://shortfactory:shortfactory@postgres:5432/shortfactory
       QUEUE_MODE: redis
       REDIS_URL: redis://redis:6379
     depends_on:
       redis:
         condition: service_healthy
+      database-migrate:
+        condition: service_completed_successfully
 
   cleanup-worker:
     build:
@@ -227,11 +264,15 @@ services:
     command: ["pnpm", "--filter", "@shortfactory/cleanup-worker", "dev"]
     environment:
       NODE_ENV: development
+      DATABASE_MODE: postgres
+      DATABASE_URL: postgresql://shortfactory:shortfactory@postgres:5432/shortfactory
       QUEUE_MODE: redis
       REDIS_URL: redis://redis:6379
     depends_on:
       redis:
         condition: service_healthy
+      database-migrate:
+        condition: service_completed_successfully
 
   orchestrator-worker:
     build:
@@ -240,11 +281,15 @@ services:
     command: ["pnpm", "--filter", "@shortfactory/orchestrator-worker", "dev"]
     environment:
       NODE_ENV: development
+      DATABASE_MODE: postgres
+      DATABASE_URL: postgresql://shortfactory:shortfactory@postgres:5432/shortfactory
       QUEUE_MODE: redis
       REDIS_URL: redis://redis:6379
     depends_on:
       redis:
         condition: service_healthy
+      database-migrate:
+        condition: service_completed_successfully
 
   nginx:
     image: nginx:1.27-alpine
