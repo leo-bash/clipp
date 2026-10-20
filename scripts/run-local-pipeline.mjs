@@ -785,9 +785,17 @@ async function discoverHistoricalUsage(sourcePath) {
 async function loadUsageLedger(usageFile, sourcePath) {
   const sourceName = path.basename(sourcePath);
   if (!(await fileExists(usageFile))) {
-    await writeFile(usageFile, `# ShortFactory source usage ledger\n# source=${sourceName}\n# Intervalli in secondi: start -> end. Le righe IN_PROGRESS vengono considerate occupate per evitare riuso dopo un errore.\n`, "utf8");
+    await writeFile(usageFile, `# ShortFactory source usage ledger\n# source=${sourceName}\n# Intervalli in secondi: start -> end. Le righe IN_PROGRESS con video finale QC valido restano occupate; le prenotazioni fallite vengono liberate.\n`, "utf8");
   }
-  const current = (await readFile(usageFile, "utf8")).split(/\r?\n/u).map(parseUsageLine).filter(Boolean).filter((entry) => entry.source === sourceName);
+  const parsedEntries = (await readFile(usageFile, "utf8")).split(/\r?\n/u).map(parseUsageLine).filter(Boolean).filter((entry) => entry.source === sourceName);
+  const current = [];
+  for (const entry of parsedEntries) {
+    if (entry.status !== "IN_PROGRESS" || await usageEntryHasPassedQc(entry)) {
+      current.push(entry);
+      continue;
+    }
+    await logEvent("INFO", "Prenotazione sorgente abbandonata resa nuovamente disponibile", { run: entry.run, start: entry.start, end: entry.end, source: entry.source });
+  }
   const knownRuns = new Set(current.map((entry) => entry.run));
   const historical = await discoverHistoricalUsage(sourcePath);
   for (const entry of historical) {
@@ -797,6 +805,18 @@ async function loadUsageLedger(usageFile, sourcePath) {
     knownRuns.add(entry.run);
   }
   return current;
+}
+
+async function usageEntryHasPassedQc(entry) {
+  const runDirectory = path.join(root, ".data", "local-pipeline", entry.run);
+  const manifestPath = path.join(runDirectory, "manifest.json");
+  if (!(await fileExists(manifestPath))) return false;
+  try {
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+    return manifest.qc?.passed === true && typeof manifest.outputPath === "string" && await fileExists(manifest.outputPath);
+  } catch {
+    return false;
+  }
 }
 
 function chooseUnusedSegment(entries, requestedStart, duration, sourceDuration, sourceName) {
