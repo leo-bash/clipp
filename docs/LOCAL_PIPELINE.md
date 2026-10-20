@@ -62,6 +62,8 @@ Puoi avviare lo stesso upload dalla dashboard online, mantenendo i file e le cre
 
 Il pulsante esegue l’equivalente di `npm run upload` e usa l’ultimo video locale che ha superato il QC. La dashboard online è protetta dall’autenticazione Vercel; il server locale deve rimanere acceso durante l’operazione. Il collegamento accetta solo l’origine della dashboard configurata in `CORS_ORIGIN`.
 
+Nello stesso pannello Reddit la dashboard mostra il testo completo di ogni proposta. Selezionando cinque storie, ogni scheda mostra il relativo orario e fuso; **Confirm times · generate & schedule 5** conferma la selezione, avvia subito la generazione delle cinque storie e poi esegue gli upload uno alla volta, attendendo l’orario programmato di ciascuno. Un secondo piano per lo stesso canale e giorno viene rifiutato per evitare doppie pubblicazioni.
+
 L'upload cerca solo video con QC superato. TikTok usa la bozza con `TIKTOK_MODE=UPLOAD_DRAFT` per impostazione predefinita. Per la pubblicazione pubblica occorrono `TIKTOK_MODE=DIRECT_POST`, lo scope `video.publish` autorizzato nuovamente dall'account e `TIKTOK_PRIVACY_LEVEL=PUBLIC_TO_EVERYONE`; l'app TikTok deve inoltre essere approvata per il Direct Post. Se YouTube e TikTok rispondono entrambe correttamente, l'intera cartella della run viene spostata nel Cestino secondo `AUTO_DELETE_UPLOADED_VIDEO=true`; se una delle due fallisce, la cartella resta disponibile per il retry. Per mantenere l'upload automatico in un singolo comando usa `npm run generate -- --upload`.
 
 Use an explicit source file:

@@ -9,7 +9,7 @@ const platforms: Platform[] = ["YOUTUBE", "TIKTOK", "INSTAGRAM"];
 const rightsStatuses: RightsStatus[] = ["OWNED", "LICENSED", "CREATIVE_COMMONS", "PUBLIC_DOMAIN", "COMMENTARY_REVIEW", "UNKNOWN", "BLOCKED"];
 type AnalyticsOverview = { snapshotCount: number; totals: { views: number; likes: number; comments: number; shares: number; followersGained: number }; byChannel: Record<string, { views: number; likes: number; comments: number; shares: number; followersGained: number }>; byFormat: Record<string, { views: number; likes: number; comments: number; shares: number; followersGained: number }> };
 type SettingsDraft = { videosPerDay: string; minDuration: string; maxDuration: string; minScore: string; monthlyBudget: string; publishingSlots: string; reviewRequired: boolean; cleanupRetentionDays: string; renderQuality: string; concurrency: string; };
-type RedditCandidateAnalysis = { provider?: string; redditPostId?: string; subreddit?: string; permalink?: string; score?: number; theme?: string; sourceText?: string; selectedForDate?: string; };
+type RedditCandidateAnalysis = { provider?: string; redditPostId?: string; subreddit?: string; permalink?: string; score?: number; theme?: string; sourceText?: string; selectedForDate?: string; dailySchedule?: { timeBand?: string; scheduledAt?: string; timezone?: string; } };
 type RedditScheduleBand = { id: string; timezone: string; time: string; label: string };
 type LocalConnection = { connected: boolean; hostname?: string; platform?: string; nodeVersion?: string; command?: string; message?: string };
 type LocalUploadJob = { id: string; status: "RUNNING" | "SUCCEEDED" | "FAILED"; startedAt: string; finishedAt?: string; logPath: string; output?: string; error?: string };
@@ -26,6 +26,18 @@ const redditScheduleBands: RedditScheduleBand[] = [
 
 function redditInfo(candidate: Candidate): RedditCandidateAnalysis | undefined {
   return candidate.analysis?.provider === "reddit" ? candidate.analysis as RedditCandidateAnalysis : undefined;
+}
+
+function restoreRedditSelection(items: Candidate[], channelId: string, selectionDate: string): { ids: string[]; schedules: Record<string, string> } {
+  const ids: string[] = [];
+  const schedules: Record<string, string> = {};
+  for (const candidate of items) {
+    const info = redditInfo(candidate);
+    if (candidate.channelId !== channelId || info?.selectedForDate !== selectionDate || ids.length >= 5) continue;
+    ids.push(candidate.id);
+    schedules[candidate.id] = info.dailySchedule?.timeBand ?? "EUROPE_EVENING";
+  }
+  return { ids, schedules };
 }
 
 function localDateIso(): string {
@@ -71,7 +83,9 @@ export default function OperationsPanel({ channels, health }: OperationsPanelPro
       setAvailableChannels(channelPage.items);
       setCandidates(candidatePage.items);
       const today = localDateIso();
-      setSelectedRedditIds(candidatePage.items.filter((candidate) => redditInfo(candidate)?.selectedForDate === today).slice(0, 5).map((candidate) => candidate.id));
+      const selection = restoreRedditSelection(candidatePage.items, channelId, today);
+      setSelectedRedditIds(selection.ids);
+      setRedditScheduleById(selection.schedules);
       setSources(sourcePage.items);
       setVideos(videoPage.items);
       setPublications(publicationPage.items);
@@ -99,8 +113,10 @@ export default function OperationsPanel({ channels, health }: OperationsPanelPro
 
   useEffect(() => {
     const today = localDateIso();
-    setSelectedRedditIds(candidates.filter((candidate) => candidate.channelId === channelId && redditInfo(candidate)?.selectedForDate === today).slice(0, 5).map((candidate) => candidate.id));
-  }, [channelId]);
+    const selection = restoreRedditSelection(candidates, channelId, today);
+    setSelectedRedditIds(selection.ids);
+    setRedditScheduleById(selection.schedules);
+  }, [channelId, candidates]);
 
   useEffect(() => {
     void loadLocalPlans();
@@ -292,6 +308,7 @@ export default function OperationsPanel({ channels, health }: OperationsPanelPro
   ];
   const redditCandidates = candidates.filter((candidate) => candidate.channelId === channelId && Boolean(redditInfo(candidate)));
   const manualCandidates = candidates.filter((candidate) => candidate.channelId === channelId && !redditInfo(candidate));
+  const selectedRedditCandidates = selectedRedditIds.map((id) => redditCandidates.find((candidate) => candidate.id === id)).filter((candidate): candidate is Candidate => Boolean(candidate));
   const today = localDateIso();
 
   return <section className="operations" aria-label="operations workspace">
@@ -317,8 +334,9 @@ export default function OperationsPanel({ channels, health }: OperationsPanelPro
           </div>
           <div className="selection-bar">
             <strong>{selectedRedditIds.length}/5 selected for {today}</strong>
-            <button type="button" disabled={dailyPlanLoading || selectedRedditIds.length !== 5} onClick={() => void generateAndScheduleDailySelection()}>{dailyPlanLoading ? "Planning generation…" : "Generate & schedule 5"}</button>
+            <button type="button" disabled={dailyPlanLoading || selectedRedditIds.length !== 5} onClick={() => void generateAndScheduleDailySelection()}>{dailyPlanLoading ? "Starting generation…" : "Confirm times · generate & schedule 5"}</button>
           </div>
+          {selectedRedditCandidates.length > 0 ? <div className="selected-reddit-list"><strong>Selected stories and publication times</strong><small>After confirmation, all five videos are generated first. Each upload then waits for its selected time.</small>{selectedRedditCandidates.map((candidate) => { const band = redditScheduleBands.find((option) => option.id === (redditScheduleById[candidate.id] ?? "EUROPE_EVENING")); return <div className="selected-reddit-row" key={candidate.id}><span>{candidate.topic}</span><small>{band?.label ?? "Europe · evening"} · {band?.time ?? "19:30"} · {band?.timezone ?? "Europe/Rome"}</small></div>; })}</div> : null}
           <div className="local-pipeline-panel">
             <div><strong>Pipeline locale del Mac</strong><small>La pagina controlla lo stato ogni 5 secondi. Il Mac deve rimanere acceso per attendere gli orari programmati.</small></div>
             <div className="review-actions">
@@ -335,12 +353,11 @@ export default function OperationsPanel({ channels, health }: OperationsPanelPro
           {redditCandidates.length === 0 ? <p className="muted">No Reddit proposals yet. Choose a theme and fetch stories.</p> : redditCandidates.map((candidate) => {
             const info = redditInfo(candidate);
             const selected = selectedRedditIds.includes(candidate.id);
-            const excerpt = String(info?.sourceText ?? "").replace(/\s+/gu, " ").slice(0, 280);
             return <article className={`entity-card reddit-card${selected ? " selected" : ""}`} key={candidate.id}>
               <label className="proposal-select"><input type="checkbox" checked={selected} onChange={() => toggleRedditSelection(candidate.id)} /><strong>{candidate.topic}</strong></label>
               <small>r/{info?.subreddit ?? "reddit"} · {info?.score ?? 0} upvotes · {info?.theme ?? "story"} · {candidate.status}</small>
-              <p>{excerpt}{excerpt.length >= 280 ? "…" : ""}</p>
-              {selected ? <label className="schedule-choice">Publish window<select value={redditScheduleById[candidate.id] ?? "EUROPE_EVENING"} onChange={(event) => setRedditScheduleById((schedules) => ({ ...schedules, [candidate.id]: fieldValue(event) }))}>{redditScheduleBands.map((band) => <option key={band.id} value={band.id}>{band.label} · {band.time}</option>)}</select></label> : null}
+              <details className="reddit-source" open={selected}><summary>{selected ? "Selected Reddit text" : "Read full Reddit text"}</summary><p>{String(info?.sourceText ?? "")}</p></details>
+              {selected ? <label className="schedule-choice">Publication time<select aria-label={`Publication time for ${candidate.topic}`} value={redditScheduleById[candidate.id] ?? "EUROPE_EVENING"} onChange={(event) => setRedditScheduleById((schedules) => ({ ...schedules, [candidate.id]: fieldValue(event) }))}>{redditScheduleBands.map((band) => <option key={band.id} value={band.id}>{band.label} · {band.time} ({band.timezone})</option>)}</select></label> : null}
               <div className="review-actions">
                 {info?.permalink ? <a className="source-link" href={info.permalink} target="_blank" rel="noreferrer">Open original</a> : null}
                 <button type="button" onClick={() => void candidateAction(candidate, "analyze")}>Analyze</button>

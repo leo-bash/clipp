@@ -32,6 +32,7 @@ interface LocalUploadJob { id: string; status: LocalUploadStatus; startedAt: str
 const plans = new Map<string, LocalPlan>();
 const uploadJobs = new Map<string, LocalUploadJob>();
 let activeUploadId: string | undefined;
+const activePlanStatuses = new Set<LocalPlanStatus>(["QUEUED", "GENERATING", "WAITING_UPLOAD", "UPLOADING", "COMPLETED", "PARTIAL_FAILURE"]);
 
 export async function registerLocalPipelineRoutes(server: FastifyInstance, store: DomainStore, prefix = "/api/v1"): Promise<void> {
   server.get(`${prefix}/local-pipeline/plans`, async () => ({ items: await listPlans() }));
@@ -66,6 +67,8 @@ export async function registerLocalPipelineRoutes(server: FastifyInstance, store
   server.post(`${prefix}/local-pipeline/daily`, async (request, reply) => {
     const input = localPlanSchema.parse(request.body);
     if (!(await store.getChannel(input.channelId))) return reply.code(404).send({ error: "CHANNEL_NOT_FOUND" });
+    const existingPlan = (await listPlans()).find((plan) => plan.channelId === input.channelId && plan.selectionDate === input.selectionDate && activePlanStatuses.has(plan.status));
+    if (existingPlan) return reply.code(409).send({ error: "DAILY_PLAN_EXISTS", message: "A generation/upload plan already exists for this channel and date.", plan: existingPlan });
     const ids = new Set(input.items.map((item) => item.candidateId));
     if (ids.size !== input.items.length) return reply.code(400).send({ error: "DUPLICATE_CANDIDATE", message: "Choose five different Reddit stories." });
     const candidatePage = await store.listCandidates({ page: 1, pageSize: 1000 });

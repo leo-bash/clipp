@@ -75,6 +75,12 @@ h1 { max-width: 680px; font-size: clamp(2.8rem, 8vw, 6rem); line-height: .95; ma
 .local-plan-item { color: var(--muted); display: block; font-size: .86rem; }
 .local-upload-status { border-top: 1px solid #2c3038; display: grid; gap: .4rem; padding-top: .6rem; }
 .local-upload-status pre { background: #0b0c0f; border: 1px solid #2c3038; border-radius: 7px; color: var(--muted); font: .75rem/1.4 monospace; max-height: 18rem; overflow: auto; padding: .7rem; white-space: pre-wrap; }
+.selected-reddit-list { background: #14171d; border: 1px solid #34404d; border-radius: 8px; display: grid; gap: .55rem; padding: .75rem; }
+.selected-reddit-row { border-top: 1px solid #2c3038; display: grid; gap: .2rem; padding-top: .5rem; }
+.selected-reddit-row:first-of-type { border-top: 0; padding-top: 0; }
+.reddit-source { margin: .7rem 0; }
+.reddit-source summary { color: var(--accent); cursor: pointer; font-size: .85rem; }
+.reddit-source p { color: var(--muted); line-height: 1.55; margin: .55rem 0 0; white-space: pre-wrap; }
 .reddit-card.selected { border-color: var(--accent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent); }
 .proposal-select { align-items: flex-start; display: flex; gap: .65rem; }
 .proposal-select input { margin-top: .25rem; }
