@@ -6,6 +6,7 @@ import { loadConfig } from "@shortfactory/config";
 import { LocalStorageProvider } from "@shortfactory/storage";
 import { createQueue } from "@shortfactory/queue";
 import { buildApp } from "./app.js";
+import { hashPassword } from "./auth.js";
 
 const apps: Array<Awaited<ReturnType<typeof buildApp>>> = [];
 
@@ -46,6 +47,32 @@ describe("api foundation", () => {
     expect(unauthenticated.statusCode).toBe(401);
     expect(authenticated.statusCode).toBe(200);
     expect(viewerMutation.statusCode).toBe(403);
+  });
+
+  it("protects resources with a hashed password session and audits login/logout", async () => {
+    const auditDirectory = await mkdtemp(path.join(os.tmpdir(), "shortfactory-auth-"));
+    const app = await buildApp(loadConfig({ AUTH_MODE: "password", AUTH_PASSWORD_HASH: await hashPassword("correct horse battery staple"), AUTH_AUDIT_LOG_PATH: path.join(auditDirectory, "auth.jsonl") }));
+    apps.push(app);
+
+    const blocked = await app.server.inject({ method: "GET", url: "/api/v1/channels" });
+    const invalid = await app.server.inject({ method: "POST", url: "/api/v1/auth/login", payload: { password: "wrong password" } });
+    const login = await app.server.inject({ method: "POST", url: "/api/v1/auth/login", payload: { password: "correct horse battery staple" } });
+    const cookie = login.headers["set-cookie"];
+    const authenticated = await app.server.inject({ method: "GET", url: "/api/v1/channels", headers: { cookie: Array.isArray(cookie) ? cookie[0] : cookie } });
+    const logout = await app.server.inject({ method: "POST", url: "/api/v1/auth/logout", headers: { cookie: Array.isArray(cookie) ? cookie[0] : cookie } });
+    const afterLogout = await app.server.inject({ method: "GET", url: "/api/v1/channels", headers: { cookie: Array.isArray(cookie) ? cookie[0] : cookie } });
+    const audit = await import("node:fs/promises").then(async ({ readFile }) => await readFile(path.join(auditDirectory, "auth.jsonl"), "utf8"));
+
+    expect(blocked.statusCode).toBe(401);
+    expect(invalid.statusCode).toBe(401);
+    expect(login.statusCode).toBe(200);
+    expect(authenticated.statusCode).toBe(200);
+    expect(logout.statusCode).toBe(200);
+    expect(afterLogout.statusCode).toBe(401);
+    expect(audit).toContain("login_failed");
+    expect(audit).toContain("login_success");
+    expect(audit).toContain("logout");
+    expect(audit).not.toContain("correct horse");
   });
 
   it("restricts operational kill-switch changes to the admin key", async () => {

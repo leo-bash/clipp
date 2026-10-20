@@ -81,9 +81,13 @@ All queue consumers are wrapped by a database-backed audit boundary that records
 
 The publisher worker selects the official YouTube, TikTok or Instagram adapter only when that platform has the credentials required for an API call. Missing credentials keep the local mock adapter active, preserving deterministic development and test behavior without silently attempting browser automation.
 
-### Optional API-key RBAC boundary
+### Password session and optional API-key boundary
 
-The API supports an explicit `AUTH_MODE=api-key` deployment mode with separate ADMIN, EDITOR and VIEWER runtime keys. Local development remains disabled by default, while production deployments can enforce read/write separation without introducing browser-stored secrets or cookie-based sessions.
+The API supports two explicit access boundaries: `AUTH_MODE=password` for the single operator dashboard and `AUTH_MODE=api-key` for service or role-based access. Password mode stores only a scrypt hash, issues short-lived HttpOnly server sessions, revokes them on logout and writes login/access audit events to a JSONL file. Local tests may use `AUTH_MODE=disabled`; a deployed operator instance must configure a password hash or API keys.
+
+- Reason: The dashboard needs a simple password gate without placing a reusable secret in browser storage. The server-side session map keeps the raw token out of logs and the hash out of the client.
+- Alternatives considered: Browser-stored API keys, plaintext passwords, and a full multi-user identity provider. Those add exposure or operational scope beyond the current single-operator workflow.
+- Consequences: Sessions are process-local and expire after `AUTH_SESSION_TTL_SECONDS`; a multi-instance deployment must later move sessions to a shared store or adopt an identity provider. `AUTH_AUDIT_LOG_PATH` must be kept outside version control.
 
 ### Optional premium TTS adapter
 

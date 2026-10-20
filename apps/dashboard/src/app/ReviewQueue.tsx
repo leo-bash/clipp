@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ChangeEvent } from "react";
 import type { Video } from "@shortfactory/shared";
 
@@ -11,9 +11,21 @@ export default function ReviewQueue({ initialVideos }: ReviewQueueProps): React.
   const [message, setMessage] = useState("");
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
 
+  useEffect(() => {
+    setVideos(initialVideos);
+  }, [initialVideos]);
+
+  useEffect(() => {
+    void fetch(`${apiUrl}/api/v1/videos?page=1&pageSize=100`, { credentials: "include" }).then(async (response) => {
+      if (!response.ok) return;
+      const payload = await response.json() as { items?: Video[] };
+      setVideos(payload.items ?? []);
+    }).catch(() => undefined);
+  }, [apiUrl]);
+
   async function action(id: string, path: string, method = "POST", body?: unknown): Promise<void> {
     setMessage("");
-    const response = await fetch(`${apiUrl}/api/v1/videos/${id}${path}`, { method, headers: body ? { "content-type": "application/json" } : undefined, body: body ? JSON.stringify(body) : undefined });
+    const response = await fetch(`${apiUrl}/api/v1/videos/${id}${path}`, { method, credentials: "include", headers: body ? { "content-type": "application/json" } : undefined, body: body ? JSON.stringify(body) : undefined });
     if (!response.ok) { setMessage(`Action failed (${response.status})`); return; }
     const updated = await response.json() as Video;
     setVideos((items) => items.map((item) => item.id === updated.id ? updated : item));

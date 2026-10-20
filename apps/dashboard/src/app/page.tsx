@@ -1,68 +1,50 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import type { Channel, DependencyHealth } from "@shortfactory/shared";
 import type { Cost, Publication, Video } from "@shortfactory/shared";
 import ReviewQueue from "./ReviewQueue";
 import OperationsPanel from "./OperationsPanel";
-
-export const dynamic = "force-dynamic";
+import AuthGate from "./AuthGate";
 
 const services = ["API", "Postgres", "Redis", "Storage", "FFmpeg", "Workers", "LLM", "TTS", "YouTube", "TikTok", "Instagram"] as const;
 type AnalyticsDimensionTotals = { views: number; likes: number; comments: number; shares: number; followersGained: number };
 
-async function getChannels(): Promise<Channel[]> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-  try {
-    const response = await fetch(`${apiUrl}/api/v1/channels?page=1&pageSize=20`);
-    if (!response.ok) return [];
-    const payload = await response.json() as { items?: Channel[] };
-    return payload.items ?? [];
-  } catch {
-    return [];
-  }
+type AnalyticsOverview = { snapshotCount: number; totals: AnalyticsDimensionTotals; byChannel: Record<string, AnalyticsDimensionTotals>; byFormat: Record<string, AnalyticsDimensionTotals> };
+const emptyAnalytics = (): AnalyticsOverview => ({ snapshotCount: 0, totals: { views: 0, likes: 0, comments: 0, shares: 0, followersGained: 0 }, byChannel: {}, byFormat: {} });
+
+export default function Home(): React.JSX.Element {
+  return <AuthGate><AuthenticatedDashboard /></AuthGate>;
 }
 
-async function getVideos(): Promise<Video[]> {
+function AuthenticatedDashboard(): React.JSX.Element {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-  try {
-    const response = await fetch(`${apiUrl}/api/v1/videos?page=1&pageSize=20`);
-    if (!response.ok) return [];
-    const payload = await response.json() as { items?: Video[] };
-    return payload.items ?? [];
-  } catch { return []; }
-}
+  const [channels, setChannels] = useState<Channel[]>([]);
+  const [videos, setVideos] = useState<Video[]>([]);
+  const [publications, setPublications] = useState<Publication[]>([]);
+  const [costs, setCosts] = useState<Cost[]>([]);
+  const [analytics, setAnalytics] = useState<AnalyticsOverview>(emptyAnalytics());
+  const [health, setHealth] = useState<DependencyHealth[]>([]);
 
-async function getAnalytics(): Promise<{ snapshotCount: number; totals: AnalyticsDimensionTotals; byChannel: Record<string, AnalyticsDimensionTotals>; byFormat: Record<string, AnalyticsDimensionTotals> }> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-  try {
-    const response = await fetch(`${apiUrl}/api/v1/analytics/overview`);
-    if (!response.ok) return emptyAnalytics();
-    return await response.json() as { snapshotCount: number; totals: AnalyticsDimensionTotals; byChannel: Record<string, AnalyticsDimensionTotals>; byFormat: Record<string, AnalyticsDimensionTotals> };
-  } catch { return emptyAnalytics(); }
-}
+  useEffect(() => {
+    const getItems = async <T,>(path: string): Promise<T[]> => {
+      const response = await fetch(`${apiUrl}${path}`, { credentials: "include" });
+      if (!response.ok) return [];
+      const payload = await response.json() as { items?: T[] };
+      return payload.items ?? [];
+    };
+    void Promise.all([
+      getItems<Channel>("/api/v1/channels?page=1&pageSize=20"),
+      getItems<Video>("/api/v1/videos?page=1&pageSize=20"),
+      getItems<Publication>("/api/v1/publications?page=1&pageSize=100"),
+      getItems<Cost>("/api/v1/costs?page=1&pageSize=100"),
+      fetch(`${apiUrl}/api/v1/analytics/overview`, { credentials: "include" }).then(async (response) => response.ok ? await response.json() as AnalyticsOverview : emptyAnalytics()),
+      fetch(`${apiUrl}/ready`, { credentials: "include" }).then(async (response) => { const payload = await response.json() as { dependencies?: DependencyHealth[] }; return payload.dependencies ?? []; }).catch(() => [])
+    ]).then(([channelItems, videoItems, publicationItems, costItems, analyticsOverview, dependencies]) => {
+      setChannels(channelItems); setVideos(videoItems); setPublications(publicationItems); setCosts(costItems); setAnalytics(analyticsOverview); setHealth(dependencies);
+    });
+  }, [apiUrl]);
 
-function emptyAnalytics(): { snapshotCount: number; totals: AnalyticsDimensionTotals; byChannel: Record<string, AnalyticsDimensionTotals>; byFormat: Record<string, AnalyticsDimensionTotals> } { return { snapshotCount: 0, totals: { views: 0, likes: 0, comments: 0, shares: 0, followersGained: 0 }, byChannel: {}, byFormat: {} }; }
-
-async function getPublications(): Promise<Publication[]> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-  try { const response = await fetch(`${apiUrl}/api/v1/publications?page=1&pageSize=100`); if (!response.ok) return []; const payload = await response.json() as { items?: Publication[] }; return payload.items ?? []; } catch { return []; }
-}
-
-async function getCosts(): Promise<Cost[]> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-  try { const response = await fetch(`${apiUrl}/api/v1/costs?page=1&pageSize=100`); if (!response.ok) return []; const payload = await response.json() as { items?: Cost[] }; return payload.items ?? []; } catch { return []; }
-}
-
-async function getHealth(): Promise<DependencyHealth[]> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
-  try { const response = await fetch(`${apiUrl}/ready`); const payload = await response.json() as { dependencies?: DependencyHealth[] }; return payload.dependencies ?? [{ name: "api", status: "down", mode: "mock", detail: "API readiness unavailable" }]; } catch { return [{ name: "api", status: "down", mode: "mock", detail: "API unavailable" }]; }
-}
-
-export default async function Home(): Promise<React.JSX.Element> {
-  const channels = await getChannels();
-  const videos = await getVideos();
-  const publications = await getPublications();
-  const costs = await getCosts();
-  const analytics = await getAnalytics();
-  const health = await getHealth();
   const statusFor = (service: string): DependencyHealth => health.find((item) => item.name.toLowerCase() === service.toLowerCase()) ?? { name: service.toLowerCase(), status: "down", mode: "mock", detail: "not reported by readiness endpoint" };
   const count = (status: Video["status"]): number => videos.filter((video) => video.status === status).length;
   const spend = costs.reduce((total, cost) => total + (cost.actualCostEur ?? cost.estimatedCostEur), 0);

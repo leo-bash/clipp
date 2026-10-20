@@ -16,6 +16,7 @@
     "pipeline:local": "apps/api/node_modules/.bin/tsx scripts/run-local-pipeline.mjs",
     "setup:whisper": "node scripts/setup-whisper-local.mjs",
     "setup:postfully": "playwright install chromium",
+    "auth:hash": "apps/api/node_modules/.bin/tsx scripts/hash-password.mjs",
     "generate": "apps/api/node_modules/.bin/tsx scripts/run-local-pipeline.mjs generate",
     "upload": "apps/api/node_modules/.bin/tsx scripts/run-local-pipeline.mjs upload"
   },

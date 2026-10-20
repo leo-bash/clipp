@@ -22,6 +22,7 @@ import { registerIntegrationRoutes } from "./integrations-routes.js";
 import { registerRedditRoutes } from "./reddit-routes.js";
 import { registerLocalPipelineRoutes } from "./local-pipeline-routes.js";
 import { readStoredPlatformCredentials } from "@shortfactory/platforms";
+import { isPublicAuthPath, PasswordSessionAuth, registerAuthRoutes } from "./auth.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -49,6 +50,7 @@ function statusFromChecks(checks: DependencyHealth[]): HealthStatus {
 export async function buildApp(config: AppConfig, supplied?: Partial<AppDependencies>): Promise<ShortFactoryApp> {
   const logger = createLogger(config.LOG_LEVEL);
   const metrics = new MetricsRegistry();
+  const sessionAuth = new PasswordSessionAuth(config);
   const controls: OperationalControls = { stopAllPublishing: config.STOP_ALL_PUBLISHING, stopRendering: config.STOP_RENDERING, stopPaidApis: config.STOP_PAID_APIS };
   const database = supplied?.database ?? createDatabase(config.DATABASE_MODE, config.DATABASE_URL);
   const dependencies: AppDependencies = {
@@ -68,10 +70,17 @@ export async function buildApp(config: AppConfig, supplied?: Partial<AppDependen
   const server = Fastify({ loggerInstance: logger, bodyLimit: 1_048_576 }) as unknown as FastifyInstance;
 
   await server.register(helmet);
-  await server.register(cors, { origin: config.CORS_ORIGIN });
+  await server.register(cors, { origin: config.CORS_ORIGIN.split(",").map((origin) => origin.trim()).filter(Boolean), credentials: true });
   await server.register(rateLimit, { max: config.API_RATE_LIMIT_MAX, timeWindow: config.API_RATE_LIMIT_WINDOW_MS, errorResponseBuilder: () => ({ error: "RATE_LIMITED", message: "request rate limit exceeded" }) });
   server.addHook("onRequest", async (request, reply) => {
-    if (config.AUTH_MODE === "api-key" && request.method !== "OPTIONS" && !request.url.startsWith("/health") && !request.url.startsWith("/ready") && !request.url.startsWith("/metrics")) {
+    if (config.AUTH_MODE === "password" && request.method !== "OPTIONS" && !isPublicAuthPath(request.url)) {
+      if (!sessionAuth.isConfigured()) return reply.code(503).send({ error: "AUTH_NOT_CONFIGURED", message: "Server authentication is not configured." });
+      if (!await sessionAuth.session(request)) {
+        await sessionAuth.audit("access_denied", request);
+        return reply.code(401).send({ error: "UNAUTHENTICATED", message: "A valid session is required." });
+      }
+    }
+    if (config.AUTH_MODE === "api-key" && request.method !== "OPTIONS" && !isPublicAuthPath(request.url)) {
       const role = roleForApiKey(request.headers["x-api-key"], config);
       if (!role) return reply.code(401).send({ error: "UNAUTHENTICATED", message: "a configured x-api-key is required" });
       if (request.method !== "GET" && request.method !== "HEAD" && role === "VIEWER") return reply.code(403).send({ error: "FORBIDDEN", message: "viewer role cannot mutate resources" });
@@ -93,14 +102,16 @@ export async function buildApp(config: AppConfig, supplied?: Partial<AppDependen
     return reply.code(500).send({ error: "INTERNAL_ERROR" });
   });
 
-  await registerDomainRoutes(server, dependencies.database.domain, dependencies.costControl, dependencies.rightsGate, "", controls, config.AUTH_MODE, config.ADMIN_API_KEY);
-  await registerDomainRoutes(server, dependencies.database.domain, dependencies.costControl, dependencies.rightsGate, "/api/v1", controls, config.AUTH_MODE, config.ADMIN_API_KEY);
+  const domainAuthMode = config.AUTH_MODE === "api-key" ? "api-key" : "disabled";
+  await registerDomainRoutes(server, dependencies.database.domain, dependencies.costControl, dependencies.rightsGate, "", controls, domainAuthMode, config.ADMIN_API_KEY);
+  await registerDomainRoutes(server, dependencies.database.domain, dependencies.costControl, dependencies.rightsGate, "/api/v1", controls, domainAuthMode, config.ADMIN_API_KEY);
   await registerAnalyticsRoutes(server, dependencies.analyticsStore);
   await registerAnalyticsRoutes(server, dependencies.analyticsStore, "/api/v1");
   await registerPipelineRoutes(server, dependencies.database.domain, dependencies.storage, "/api/v1");
   await registerIntegrationRoutes(server, config, dependencies.database.domain, "/api/v1");
   await registerRedditRoutes(server, config, dependencies.database.domain, dependencies.queue, "/api/v1");
   await registerLocalPipelineRoutes(server, dependencies.database.domain, "/api/v1");
+  await registerAuthRoutes(server, sessionAuth, "/api/v1");
 
   server.get("/health", async () => ({
     status: "ok",
@@ -127,7 +138,7 @@ export async function buildApp(config: AppConfig, supplied?: Partial<AppDependen
       Promise.resolve({ name: "llm", status: "degraded", mode: "mock", detail: "deterministic adapter active; configure a paid provider before production" } as const),
       Promise.resolve({ name: "tts", status: "degraded", mode: "mock", detail: "TTS is disabled until a provider is configured" } as const),
       Promise.resolve({ name: "workers", status: "degraded", mode: dependencies.queue.mode, detail: "worker liveness is supervised by queue consumers; inspect worker logs" } as const),
-      Promise.resolve({ name: "auth", status: config.AUTH_MODE === "api-key" && config.ADMIN_API_KEY ? "ok" : "degraded", mode: "mock", detail: config.AUTH_MODE === "api-key" && config.ADMIN_API_KEY ? "admin API key configured" : "configure AUTH_MODE=api-key and ADMIN_API_KEY" } as const),
+      Promise.resolve({ name: "auth", status: (config.AUTH_MODE === "api-key" && config.ADMIN_API_KEY) || (config.AUTH_MODE === "password" && sessionAuth.isConfigured()) ? "ok" : "degraded", mode: "mock", detail: config.AUTH_MODE === "password" && sessionAuth.isConfigured() ? "hashed password and session cookie configured" : config.AUTH_MODE === "api-key" && config.ADMIN_API_KEY ? "admin API key configured" : "configure server authentication" } as const),
       Promise.resolve({ name: "budget", status: "ok", mode: "mock", detail: `monthly budget €${config.MONTHLY_BUDGET_EUR.toFixed(2)}` } as const),
       Promise.resolve({ name: "platforms", status: youtubeConnected || tiktokConnected ? "ok" : "degraded", mode: "mock", detail: youtubeConnected && tiktokConnected ? "YouTube and TikTok connected" : youtubeConnected ? "YouTube connected; TikTok not connected" : tiktokConnected ? "TikTok connected; YouTube not connected" : "Connect YouTube or TikTok from the dashboard" } as const)
     ]);

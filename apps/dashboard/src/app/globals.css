@@ -80,6 +80,14 @@ h1 { max-width: 680px; font-size: clamp(2.8rem, 8vw, 6rem); line-height: .95; ma
 .schedule-choice { display: grid; gap: .35rem; max-width: 34rem; }
 .schedule-choice select { background: #101216; border: 1px solid #353a44; border-radius: 7px; color: var(--text); padding: .55rem .65rem; }
 .source-link { align-items: center; background: #15171c; border: 1px solid #353a44; border-radius: 7px; color: var(--accent); display: inline-flex; padding: .55rem .75rem; text-decoration: none; }
+.auth-screen { align-items: center; display: flex; min-height: 100dvh; justify-content: center; padding: 1rem; }
+.auth-card { background: var(--panel); border: 1px solid #2c3038; border-radius: 16px; display: grid; gap: 1rem; max-width: 420px; padding: clamp(1.25rem, 6vw, 2.25rem); width: 100%; }
+.auth-card h1 { font-size: clamp(2.4rem, 12vw, 4rem); margin: 0; }
+.auth-card label { color: var(--muted); display: grid; gap: .4rem; }
+.auth-card input { background: #101114; border: 1px solid #353a44; border-radius: 8px; color: var(--text); min-height: 48px; padding: .7rem; width: 100%; }
+.auth-card button, .session-bar button { background: #263a34; border: 1px solid #49685c; border-radius: 8px; color: var(--text); cursor: pointer; min-height: 46px; padding: .6rem .85rem; }
+.session-bar { align-items: center; background: #15171c; border-bottom: 1px solid #2c3038; color: var(--muted); display: flex; gap: .75rem; justify-content: flex-end; padding: .6rem 1rem; }
+.session-bar button { min-height: 36px; padding: .35rem .65rem; }
 
 /* Mobile-first operations layout: every action remains reachable with one thumb. */
 button, input, select, textarea { font: inherit; }
