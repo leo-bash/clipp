@@ -64,6 +64,15 @@ export interface CreateCandidateInput {
   topic: string;
   sourceAssetId?: string;
   scoreTotal?: number;
+  analysis?: Record<string, unknown>;
+}
+
+export interface CandidateScheduleInput {
+  selectionDate: string;
+  scheduledAt: string;
+  timezone: string;
+  timeBand: string;
+  platforms: string[];
 }
 
 export interface CreateVideoInput {
@@ -131,7 +140,8 @@ export interface DomainStore {
   createJobAudit(input: CreateJobAuditInput): Promise<JobAudit>;
   listCandidates(params: PageParams): Promise<Page<Candidate>>;
   createCandidate(input: CreateCandidateInput): Promise<Candidate>;
-  selectCandidate(id: string): Promise<Candidate | undefined>;
+  selectCandidate(id: string, selectionDate?: string): Promise<Candidate | undefined>;
+  scheduleCandidate(id: string, input: CandidateScheduleInput): Promise<Candidate | undefined>;
   analyzeCandidate(id: string): Promise<Candidate | undefined>;
   planCandidate(id: string): Promise<Candidate | undefined>;
   rejectCandidate(id: string, reason: string): Promise<Candidate | undefined>;
@@ -227,7 +237,8 @@ export class MemoryDomainStore implements DomainStore {
   public async createJobAudit(input: CreateJobAuditInput): Promise<JobAudit> { const item: JobAudit = { id: randomUUID(), ...input, attempt: input.attempt ?? 0, metadata: input.metadata, startedAt: input.startedAt, completedAt: input.completedAt }; this.jobAuditItems.push(item); return item; }
   public async listCandidates(params: PageParams): Promise<Page<Candidate>> { return pageSlice(this.candidateItems, params); }
   public async createCandidate(input: CreateCandidateInput): Promise<Candidate> { const item: Candidate = { id: randomUUID(), ...input, status: "DISCOVERED", scoreTotal: input.scoreTotal ?? 0, createdAt: now(), updatedAt: now() }; this.candidateItems.push(item); return item; }
-  public async selectCandidate(id: string): Promise<Candidate | undefined> { return this.updateCandidate(id, { status: "SELECTED" }); }
+  public async selectCandidate(id: string, selectionDate = new Date().toISOString().slice(0, 10)): Promise<Candidate | undefined> { const current = this.candidateItems.find((item) => item.id === id); return this.updateCandidate(id, { status: "SELECTED", analysis: { ...(current?.analysis ?? {}), selectedForDate: selectionDate, selectedAt: now() } }); }
+  public async scheduleCandidate(id: string, input: CandidateScheduleInput): Promise<Candidate | undefined> { const current = this.candidateItems.find((item) => item.id === id); if (!current) return undefined; return this.updateCandidate(id, { status: "SELECTED", analysis: { ...(current.analysis ?? {}), selectedForDate: input.selectionDate, selectedAt: current.analysis?.selectedAt ?? now(), dailySchedule: { scheduledAt: input.scheduledAt, timezone: input.timezone, timeBand: input.timeBand, platforms: input.platforms, plannedAt: now() } } }); }
   public async analyzeCandidate(id: string): Promise<Candidate | undefined> { return this.updateCandidate(id, { status: "QUALIFIED", analysis: { provider: "deterministic", analyzedAt: now(), decision: "qualified_for_planning" } }); }
   public async planCandidate(id: string): Promise<Candidate | undefined> { return this.updateCandidate(id, { status: "SELECTED", analysis: { ...(this.candidateItems.find((item) => item.id === id)?.analysis ?? {}), plannedAt: now() } }); }
   public async rejectCandidate(id: string, reason: string): Promise<Candidate | undefined> { return this.updateCandidate(id, { status: "REJECTED", rejectionReason: reason }); }
@@ -296,8 +307,9 @@ export class PostgresDomainStore implements DomainStore {
   public async listJobsAudit(params: PageParams): Promise<Page<JobAudit>> { const [items, total] = await Promise.all([this.db.select().from(jobsAudit).orderBy(desc(jobsAudit.startedAt)).limit(params.pageSize).offset((params.page - 1) * params.pageSize), this.db.select({ value: count() }).from(jobsAudit)]); return { items: items.map(toJobAudit), total: Number(total[0]?.value ?? 0), ...params }; }
   public async createJobAudit(input: CreateJobAuditInput): Promise<JobAudit> { const [item] = await this.db.insert(jobsAudit).values({ ...input, startedAt: input.startedAt ? new Date(input.startedAt) : undefined, completedAt: input.completedAt ? new Date(input.completedAt) : undefined, metadataJson: input.metadata, attempt: input.attempt ?? 0 }).returning(); if (!item) throw new AppError("CREATE_FAILED", "job audit was not created"); return toJobAudit(item); }
   public async listCandidates(params: PageParams): Promise<Page<Candidate>> { const [items, total] = await Promise.all([this.db.select().from(candidates).orderBy(desc(candidates.createdAt)).limit(params.pageSize).offset((params.page - 1) * params.pageSize), this.db.select({ value: count() }).from(candidates)]); return { items: items.map(toCandidate), total: Number(total[0]?.value ?? 0), ...params }; }
-  public async createCandidate(input: CreateCandidateInput): Promise<Candidate> { const [item] = await this.db.insert(candidates).values(input).returning(); if (!item) throw new AppError("CREATE_FAILED", "candidate was not created"); return toCandidate(item); }
-  public async selectCandidate(id: string): Promise<Candidate | undefined> { return this.updateCandidate(id, { status: "SELECTED" }); }
+  public async createCandidate(input: CreateCandidateInput): Promise<Candidate> { const [item] = await this.db.insert(candidates).values({ channelId: input.channelId, topic: input.topic, sourceAssetId: input.sourceAssetId, scoreTotal: input.scoreTotal, analysisJson: input.analysis }).returning(); if (!item) throw new AppError("CREATE_FAILED", "candidate was not created"); return toCandidate(item); }
+  public async selectCandidate(id: string, selectionDate = new Date().toISOString().slice(0, 10)): Promise<Candidate | undefined> { const [current] = await this.db.select().from(candidates).where(eq(candidates.id, id)); if (!current) return undefined; return this.updateCandidate(id, { status: "SELECTED", analysisJson: { ...(current.analysisJson ?? {}), selectedForDate: selectionDate, selectedAt: new Date().toISOString() } }); }
+  public async scheduleCandidate(id: string, input: CandidateScheduleInput): Promise<Candidate | undefined> { const [current] = await this.db.select().from(candidates).where(eq(candidates.id, id)); if (!current) return undefined; return this.updateCandidate(id, { status: "SELECTED", analysisJson: { ...(current.analysisJson ?? {}), selectedForDate: input.selectionDate, selectedAt: current.analysisJson?.selectedAt ?? new Date().toISOString(), dailySchedule: { scheduledAt: input.scheduledAt, timezone: input.timezone, timeBand: input.timeBand, platforms: input.platforms, plannedAt: new Date().toISOString() } } }); }
   public async analyzeCandidate(id: string): Promise<Candidate | undefined> { return this.updateCandidate(id, { status: "QUALIFIED", analysisJson: { provider: "deterministic", analyzedAt: new Date().toISOString(), decision: "qualified_for_planning" } }); }
   public async planCandidate(id: string): Promise<Candidate | undefined> { return this.updateCandidate(id, { status: "SELECTED", analysisJson: { plannedAt: new Date().toISOString() } }); }
   public async rejectCandidate(id: string, reason: string): Promise<Candidate | undefined> { return this.updateCandidate(id, { status: "REJECTED", rejectionReason: reason }); }

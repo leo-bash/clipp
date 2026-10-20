@@ -1,4 +1,4 @@
-import { InstagramMockPublisher, InstagramPublisher, PublishingScheduler, TikTokMockPublisher, TikTokPublisher, YouTubeMockPublisher, YouTubePublisher } from "@shortfactory/platforms";
+import { InstagramMockPublisher, InstagramPublisher, PublishingScheduler, TikTokMockPublisher, TikTokPublisher, YouTubeMockPublisher, YouTubePublisher, readStoredPlatformCredentials } from "@shortfactory/platforms";
 import { loadConfig } from "@shortfactory/config";
 import { createAuditedQueueWorker, createDatabase } from "@shortfactory/database";
 import { createLogger } from "@shortfactory/logger";
@@ -6,14 +6,17 @@ import { createQueue } from "@shortfactory/queue";
 import { asJobRecord, jobString } from "@shortfactory/shared";
 
 const config = loadConfig();
+const storedCredentials = await readStoredPlatformCredentials(config.PLATFORM_CREDENTIALS_FILE, config.APP_ENCRYPTION_KEY);
 const logger = createLogger(config.LOG_LEVEL).child({ worker: "publisher-worker" });
 const queue = createQueue(config.QUEUE_MODE, config.REDIS_URL);
 const database = createDatabase(config.DATABASE_MODE, config.DATABASE_URL);
-const youtube = config.YOUTUBE_CLIENT_ID && config.YOUTUBE_CLIENT_SECRET && config.YOUTUBE_REDIRECT_URI && config.YOUTUBE_ACCESS_TOKEN
-  ? new YouTubePublisher({ clientId: config.YOUTUBE_CLIENT_ID, clientSecret: config.YOUTUBE_CLIENT_SECRET, redirectUri: config.YOUTUBE_REDIRECT_URI, accessToken: config.YOUTUBE_ACCESS_TOKEN, refreshToken: config.YOUTUBE_REFRESH_TOKEN || undefined })
+const youtubeCredentials = storedCredentials.YOUTUBE;
+const tiktokCredentials = storedCredentials.TIKTOK;
+const youtube = config.YOUTUBE_CLIENT_ID && config.YOUTUBE_CLIENT_SECRET && config.YOUTUBE_REDIRECT_URI && (config.YOUTUBE_ACCESS_TOKEN || youtubeCredentials?.accessToken)
+  ? new YouTubePublisher({ clientId: config.YOUTUBE_CLIENT_ID, clientSecret: config.YOUTUBE_CLIENT_SECRET, redirectUri: config.YOUTUBE_REDIRECT_URI, accessToken: config.YOUTUBE_ACCESS_TOKEN || youtubeCredentials?.accessToken, accessTokenExpiresAt: youtubeCredentials?.tokenExpiresAt, refreshToken: config.YOUTUBE_REFRESH_TOKEN || youtubeCredentials?.refreshToken })
   : new YouTubeMockPublisher();
-const tiktok = config.TIKTOK_CLIENT_KEY && config.TIKTOK_CLIENT_SECRET && config.TIKTOK_ACCESS_TOKEN
-  ? new TikTokPublisher({ clientKey: config.TIKTOK_CLIENT_KEY, clientSecret: config.TIKTOK_CLIENT_SECRET, accessToken: config.TIKTOK_ACCESS_TOKEN, openId: config.TIKTOK_OPEN_ID || undefined, mode: config.TIKTOK_MODE, fallbackToDraft: config.TIKTOK_FALLBACK_TO_DRAFT })
+const tiktok = config.TIKTOK_CLIENT_KEY && config.TIKTOK_CLIENT_SECRET && (config.TIKTOK_ACCESS_TOKEN || tiktokCredentials?.accessToken)
+  ? new TikTokPublisher({ clientKey: config.TIKTOK_CLIENT_KEY, clientSecret: config.TIKTOK_CLIENT_SECRET, accessToken: config.TIKTOK_ACCESS_TOKEN || tiktokCredentials?.accessToken, accessTokenExpiresAt: tiktokCredentials?.tokenExpiresAt, openId: config.TIKTOK_OPEN_ID || tiktokCredentials?.externalAccountId, mode: config.TIKTOK_MODE, fallbackToDraft: config.TIKTOK_FALLBACK_TO_DRAFT })
   : new TikTokMockPublisher();
 const instagram = config.INSTAGRAM_ACCESS_TOKEN && config.INSTAGRAM_USER_ID
   ? new InstagramPublisher({ accessToken: config.INSTAGRAM_ACCESS_TOKEN, instagramUserId: config.INSTAGRAM_USER_ID, apiVersion: config.INSTAGRAM_API_VERSION })
@@ -31,7 +34,7 @@ const worker = createAuditedQueueWorker(database, config.QUEUE_MODE, config.REDI
   const timezone = jobString(channel, "timezone");
   const slots = Array.isArray(channel?.publishingSlots) ? channel.publishingSlots.filter((value): value is string => typeof value === "string") : [];
   if (!videoId || !channelId || !status || !rightsStatus || !timezone || slots.length === 0) { logger.info({ jobName: job.name, correlationId: job.correlationId }, "publish job waiting for approved video and channel configuration"); return; }
-  const result = await scheduler.publishApprovedVideo({ id: videoId, status, rightsStatus }, { id: channelId, timezone, publishingSlots: slots }, { title: jobString(payload, "title") ?? videoId, description: jobString(payload, "description") ?? "", storageKey: jobString(video, "storageKey"), filePath: jobString(payload, "filePath"), publicMediaUrl: jobString(payload, "publicMediaUrl"), privacyStatus: "private" });
+  const result = await scheduler.publishApprovedVideo({ id: videoId, status, rightsStatus }, { id: channelId, timezone, publishingSlots: slots }, { title: jobString(payload, "title") ?? videoId, description: jobString(payload, "description") ?? "", storageKey: jobString(video, "storageKey"), filePath: jobString(payload, "filePath"), publicMediaUrl: jobString(payload, "publicMediaUrl"), privacyStatus: "public" });
   logger.info({ jobName: job.name, correlationId: job.correlationId, videoId, status: result.status, publicationCount: result.publications.length }, "publish job processed");
 });
 

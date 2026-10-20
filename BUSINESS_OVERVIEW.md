@@ -81,11 +81,10 @@ Il sistema distingue, tra gli altri casi:
 
 ### 2.4 Trasformazione del materiale in contenuto editoriale
 
-Il materiale viene ascoltato o letto. Da lì ricaviamo i punti importanti: cosa è successo, perché è interessante e quale messaggio vogliamo lasciare.
+Il materiale viene ascoltato o letto. Da lì ricaviamo i punti importanti: cosa è successo, perché è interessante e quale messaggio vogliamo lasciare. Le storie possono appartenere a temi diversi in rotazione: relazioni, lavoro, confessioni e dilemmi “AITA”.
 
-Per un tutorial si parte da un problema e si arriva a una soluzione. Per una storia si costruisce una sequenza hook → contesto → evento → conclusione”. Per il commento su una clip si aggiungono contesto, opinione e spiegazione originali.
-b
-**Perché serve:** il valore non deve essere soltanto la clip, ma il lavoro editoriale che la rende comprensibile e utile.
+Per un tutorial si parte da un problema e si arriva a una soluzione. Per una storia si costruisce una sequenza hook → contesto → evento → conclusione. Nel formato scelto per il primo pilot, il post è solo lo spunto: la storia viene riscritta, narrata e montata con un hook e una conclusione originali.
+**Perché serve:** il valore non deve essere soltanto il post di partenza, ma il lavoro editoriale che lo rende comprensibile, originale e utile.
 
 **Risultato:** una proposta di video con titolo, angolo narrativo, pubblico, durata e livello di rischio.
 
@@ -99,7 +98,7 @@ Ogni candidato riceve un punteggio basato su fattori come rilevanza, novità, in
 
 ### 2.6 Scrittura dello script e piano del video
 
-Per le idee selezionate viene preparato il testo parlato e una scaletta visiva: cosa si vede in ogni momento, quale frase compare sullo schermo, dove inserire una clip e come chiudere il video.
+Per le idee selezionate viene preparato il testo parlato e una scaletta visiva: cosa si vede in ogni momento, quale frase compare sullo schermo, dove inserire il gameplay e come chiudere il video senza svelare subito il finale.
 
 **Perché serve:** separare il “cosa dire” dal “come montarlo” riduce errori e rende il risultato ripetibile tra canali diversi.
 
@@ -109,13 +108,7 @@ Per le idee selezionate viene preparato il testo parlato e una scaletta visiva: 
 
 Lo script può essere letto da una persona, da una voce artificiale o può funzionare anche solo con testo e musica.
 
-I materiali visivi possono essere:
-
-- registrazioni originali;
-- schermate di software;
-- immagini o video autorizzati;
-- elementi grafici creati per il canale;
-- brevi estratti usati all'interno di un commento editoriale, quando giustificato e sottoposto a controllo.
+Nel formato Reddit Stories useremo soprattutto gameplay di Orbital – No Copyright Gameplay, scegliendo video con autorizzazione esplicita all'uso e alla monetizzazione. Come alternativa restano gameplay registrati da noi, file acquistati con licenza commerciale verificata o elementi grafici creati per il canale.
 
 **Perché serve:** la voce e le immagini trasformano lo script in un contenuto guardabile.
 
@@ -123,7 +116,7 @@ I materiali visivi possono essere:
 
 ### 2.8 Montaggio automatico
 
-Il sistema unisce voce, immagini, clip, musica, testo sullo schermo, intro e conclusione. Adatta il materiale al formato verticale e alla durata scelta.
+Il sistema unisce voice-over, gameplay, testo sullo schermo, intro e conclusione. Adatta il materiale al formato verticale e alla durata scelta.
 
 **Perché serve:** automatizzare il lavoro ripetitivo permette di produrre molti video senza montare ogni singolo contenuto da zero.
 
@@ -505,16 +498,15 @@ La voce più facile da sottovalutare è il lavoro umano. Una pipeline economica 
 
 ## 11. Decisione consigliata per partire
 
-La sequenza più prudente è:
+Per il formato Reddit Stories scelto, con temi in rotazione e gameplay Orbital, la sequenza più prudente è:
 
 1. partire con un solo canale e un solo social;
-2. usare materiale originale o chiaramente autorizzato;
-3. pubblicare inizialmente in privato o in bozza;
-4. misurare il costo reale per video approvato;
-5. testare la qualità senza voice-over su ogni video;
-6. aggiungere la voce artificiale solo ai format che dimostrano valore;
-7. aumentare i canali solo quando il costo per video e il tempo di revisione sono sostenibili;
-8. passare a più server solo quando il volume lo richiede davvero.
+2. scegliere storie con fonte tracciata e rischio accettabile;
+3. usare la struttura hook → contesto → storia riscritta → conclusione;
+4. pubblicare inizialmente in privato o in bozza;
+5. misurare il costo reale per video approvato;
+6. aumentare i canali solo quando il costo per video e il tempo di revisione sono sostenibili;
+7. passare a più server solo quando il volume lo richiede davvero.
 
 La decisione economica non dovrebbe essere “possiamo generare 540 video?”, ma:
 

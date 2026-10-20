@@ -1,10 +1,10 @@
-.PHONY: install dev infra-up infra-down check
+.PHONY: install dev infra-up infra-down check pipeline-local generate
 
 install:
-	corepack pnpm install
+	pnpm install
 
 dev:
-	corepack pnpm dev
+	pnpm dev
 
 infra-up:
 	docker compose up -d postgres redis
@@ -13,4 +13,10 @@ infra-down:
 	docker compose down
 
 check:
-	corepack pnpm check
+	pnpm check
+
+pipeline-local:
+	pnpm pipeline:local
+
+generate:
+	pnpm generate

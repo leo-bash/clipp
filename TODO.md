@@ -12,6 +12,8 @@
 - [x] Add Docker Compose for PostgreSQL and Redis.
 - [x] Install dependencies and run the full check suite.
 - [x] Verify API, dashboard and both worker entrypoints locally; document unavailable Docker infrastructure.
+- [x] Add Reddit daily inbox: propose 10 linked stories, select 5, choose regional time windows and enqueue a dated plan.
+- [ ] Connect the `reddit-generation` queue consumer to the real media pipeline and publisher worker.
 
 ## PHASE 1 result
 
@@ -210,3 +212,40 @@ PHASE 14 acceptance criteria are satisfied by the API/platform/queue tests and t
 - [x] Add a dedicated typed TTS queue consumer with deterministic cache-first local behavior.
 
 PHASE 15 runtime integration checks are complete locally with Colima/Docker; provider credentials and remote object storage remain intentionally runtime-configured and are reported degraded until supplied.
+
+## EDITORIAL PILOT — REDDIT STORIES CON GAMEPLAY
+
+- [x] Aggiungere una inbox Reddit nella dashboard: raccolta automatica, proposta delle storie, apertura della fonte e selezione di esattamente 5 storie per il giorno.
+- [x] Salvare il tema, il permalink, il punteggio, il testo sorgente e la data di selezione nei metadati del candidate.
+- [x] Evitare duplicati Reddit già presenti e mantenere la generazione separata dalla selezione editoriale.
+- [ ] Inserire credenziali Reddit OAuth nel runtime e verificare una raccolta reale: il feed pubblico può restituire HTTP 403.
+
+- [x] Configurare la rotazione dei temi: high school, romance, situazioni imbarazzanti, bullies, family, scary, money, tinder, prank, divorce, betrayal e revenge, con tono empatico, nostalgico o di suspense.
+- [x] Generare il primo draft tecnico con storia originale, voice-over e sottotitoli; sfondo ancora provvisorio.
+- [x] Impostare il primo canale in lingua inglese con voice-over e sottotitoli catchy in inglese.
+- [x] Allineare i sottotitoli parola per parola al voice-over e adottare un tono storytime più naturale.
+- [ ] Raccogliere 20–30 storie candidate e compilare la scheda fonte/rischio per ciascuna.
+- [ ] Definire una policy per riscrittura, attribuzione, privacy e contenuti sensibili.
+- [x] Selezionare il primo gameplay Orbital e archiviare URL, descrizione della licenza e data di verifica.
+- [ ] Importare il file Orbital autorizzato nello storage condiviso e collegarlo al source asset.
+- [ ] Valutare l'acquisto dei file Orbital senza audio se la qualità dei video pubblici non è sufficiente.
+- [ ] Collegare un file/source reale al flusso di rendering, sostituendo il solo fixture della test pipeline.
+- [ ] Preparare e revisionare i primi tre script con hook, voice-over e conclusione originale.
+- [ ] Configurare un account YouTube e pubblicare il primo video in privato o in bozza.
+- [ ] Misurare costo, tempo umano, qualità e risultato prima di aumentare il volume.
+
+## LOCAL PIPELINE RUNNER
+
+- [x] Aggiungere un comando unico `pnpm pipeline:local` per il flusso locale.
+- [x] Aggiungere il comando operativo `pnpm generate` con sorgente automatica in `Movies/4K Video Downloader+`.
+- [x] Usare i file salvati da 4K Video Downloader+ come sorgenti senza automatizzare download non documentati.
+- [x] Collegare ElevenLabs, CaptionForge, FFmpeg e QC in una run ripetibile con manifest.
+- [x] Registrare gli intervalli già usati in `source-usage.txt` e scegliere automaticamente un segmento libero.
+- [x] Generare titolo breve dalla storia, salvare il video con quel nome e scrivere log dettagliati per ogni stage.
+- [x] Separare i profili di narrazione `male` e `female` nella pipeline.
+- [x] Selezionare automaticamente il profilo vocale in base alla prospettiva dello script, mantenendo l'override manuale.
+- [x] Conservare source URL e rights status; `UNKNOWN` resta sempre in revisione manuale.
+- [x] Recuperare candidati Reddit dai temi in rotazione, filtrarli, evitare duplicati e riscriverli con nomi/dettagli reinventati.
+- [x] Salvare permalink e metadati minimi della storia Reddit senza inserire username o testo originale nel video.
+- [x] Inserire la chiave Gemini in `.env` e validare la generazione automatica degli script, inclusa una run lunga oltre 90 secondi.
+- [ ] Collegare il runner alla review dashboard prima di qualsiasi pubblicazione.

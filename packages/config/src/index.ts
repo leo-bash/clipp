@@ -11,6 +11,7 @@ export const configSchema = z.object({
   API_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(120),
   API_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   CORS_ORIGIN: z.string().default("http://localhost:3000"),
+  DASHBOARD_URL: z.string().url().default("http://localhost:3000"),
   AUTH_MODE: z.enum(["disabled", "api-key"]).default("disabled"),
   ADMIN_API_KEY: z.string().default(""),
   EDITOR_API_KEY: z.string().default(""),
@@ -41,10 +42,12 @@ export const configSchema = z.object({
   YOUTUBE_REFRESH_TOKEN: z.string().default(""),
   TIKTOK_CLIENT_KEY: z.string().default(""),
   TIKTOK_CLIENT_SECRET: z.string().default(""),
+  TIKTOK_REDIRECT_URI: z.string().url().or(z.literal("")).default(""),
   TIKTOK_ACCESS_TOKEN: z.string().default(""),
   TIKTOK_OPEN_ID: z.string().default(""),
   TIKTOK_MODE: z.enum(["DIRECT_POST", "UPLOAD_DRAFT"]).default("UPLOAD_DRAFT"),
   TIKTOK_FALLBACK_TO_DRAFT: booleanFromEnv.default("true"),
+  PLATFORM_CREDENTIALS_FILE: z.string().default("../../.data/platform-credentials.json"),
   INSTAGRAM_ACCESS_TOKEN: z.string().default(""),
   INSTAGRAM_USER_ID: z.string().default(""),
   INSTAGRAM_API_VERSION: z.string().default("v23.0"),
@@ -58,7 +61,16 @@ export const configSchema = z.object({
   TTS_OUTPUT_ROOT: z.string().default("./.data/tts"),
   TTS_COST_PER_1000_CHARS_EUR: z.coerce.number().nonnegative().default(0.30),
   TRANSCRIPTION_PROVIDER: z.string().default("mock"),
-  TRANSCRIPTION_API_KEY: z.string().default("")
+  TRANSCRIPTION_API_KEY: z.string().default(""),
+  REDDIT_ACCESS_TOKEN: z.string().default(""),
+  REDDIT_CLIENT_ID: z.string().default(""),
+  REDDIT_CLIENT_SECRET: z.string().default(""),
+  REDDIT_USER_AGENT: z.string().default("shortfactory-reddit-discovery/0.1"),
+  REDDIT_OAUTH_BASE_URL: z.string().url().default("https://oauth.reddit.com"),
+  REDDIT_BASE_URL: z.string().url().default("https://www.reddit.com"),
+  REDDIT_MIN_SCORE: z.coerce.number().int().nonnegative().default(10),
+  REDDIT_MAX_SOURCE_CHARACTERS: z.coerce.number().int().positive().default(14_000),
+  REDDIT_ALLOW_NSFW: booleanFromEnv.default("false")
 });
 
 export type AppConfig = z.infer<typeof configSchema>;

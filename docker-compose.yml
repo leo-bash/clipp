@@ -36,7 +36,8 @@ services:
     build:
       context: .
       dockerfile: infrastructure/docker/Dockerfile
-    command: ["pnpm", "--filter", "@shortfactory/api", "dev"]
+    # Compose injects the environment directly; do not make the container depend on a local .env file.
+    command: ["pnpm", "--filter", "@shortfactory/api", "exec", "tsx", "src/server.ts"]
     environment:
       NODE_ENV: development
       API_HOST: 0.0.0.0
@@ -46,9 +47,20 @@ services:
       QUEUE_MODE: redis
       REDIS_URL: redis://redis:6379
       CORS_ORIGIN: http://localhost:3000
+      DASHBOARD_URL: http://localhost:3000
+      APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:-development-only-replace-me}
+      PLATFORM_CREDENTIALS_FILE: /app/.data/platform-credentials.json
+      YOUTUBE_CLIENT_ID: ${YOUTUBE_CLIENT_ID:-}
+      YOUTUBE_CLIENT_SECRET: ${YOUTUBE_CLIENT_SECRET:-}
+      YOUTUBE_REDIRECT_URI: ${YOUTUBE_REDIRECT_URI:-http://localhost:4000/api/v1/integrations/youtube/callback}
+      TIKTOK_CLIENT_KEY: ${TIKTOK_CLIENT_KEY:-}
+      TIKTOK_CLIENT_SECRET: ${TIKTOK_CLIENT_SECRET:-}
+      TIKTOK_REDIRECT_URI: ${TIKTOK_REDIRECT_URI:-http://localhost:4000/api/v1/integrations/tiktok/callback}
+      TIKTOK_MODE: ${TIKTOK_MODE:-UPLOAD_DRAFT}
     ports:
       - "4000:4000"
-    volumes: *render-cache
+    volumes:
+      - ./.data:/app/.data
     depends_on:
       redis:
         condition: service_healthy
@@ -268,6 +280,8 @@ services:
       DATABASE_URL: postgresql://shortfactory:shortfactory@postgres:5432/shortfactory
       QUEUE_MODE: redis
       REDIS_URL: redis://redis:6379
+      APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:-development-only-replace-me}
+      PLATFORM_CREDENTIALS_FILE: /app/.data/platform-credentials.json
       YOUTUBE_CLIENT_ID: ${YOUTUBE_CLIENT_ID:-}
       YOUTUBE_CLIENT_SECRET: ${YOUTUBE_CLIENT_SECRET:-}
       YOUTUBE_REDIRECT_URI: ${YOUTUBE_REDIRECT_URI:-}
@@ -275,6 +289,7 @@ services:
       YOUTUBE_REFRESH_TOKEN: ${YOUTUBE_REFRESH_TOKEN:-}
       TIKTOK_CLIENT_KEY: ${TIKTOK_CLIENT_KEY:-}
       TIKTOK_CLIENT_SECRET: ${TIKTOK_CLIENT_SECRET:-}
+      TIKTOK_REDIRECT_URI: ${TIKTOK_REDIRECT_URI:-http://localhost:4000/api/v1/integrations/tiktok/callback}
       TIKTOK_ACCESS_TOKEN: ${TIKTOK_ACCESS_TOKEN:-}
       TIKTOK_OPEN_ID: ${TIKTOK_OPEN_ID:-}
       TIKTOK_MODE: ${TIKTOK_MODE:-UPLOAD_DRAFT}

@@ -12,12 +12,18 @@
     "lint": "turbo run lint",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
-    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "pipeline:local": "apps/api/node_modules/.bin/tsx scripts/run-local-pipeline.mjs",
+    "setup:whisper": "node scripts/setup-whisper-local.mjs",
+    "setup:postfully": "playwright install chromium",
+    "generate": "apps/api/node_modules/.bin/tsx scripts/run-local-pipeline.mjs generate",
+    "upload": "apps/api/node_modules/.bin/tsx scripts/run-local-pipeline.mjs upload"
   },
   "devDependencies": {
     "@eslint/js": "^9.35.0",
-    "typescript-eslint": "^8.42.0",
+    "playwright": "^1.64.1",
     "turbo": "^2.5.6",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.42.0"
   }
 }

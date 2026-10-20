@@ -18,6 +18,10 @@ import { registerAnalyticsRoutes } from "./analytics-routes.js";
 import { MetricsRegistry } from "./metrics.js";
 import { createConfiguredStorageProvider, type StorageProvider } from "@shortfactory/storage";
 import { registerPipelineRoutes } from "./pipeline-routes.js";
+import { registerIntegrationRoutes } from "./integrations-routes.js";
+import { registerRedditRoutes } from "./reddit-routes.js";
+import { registerLocalPipelineRoutes } from "./local-pipeline-routes.js";
+import { readStoredPlatformCredentials } from "@shortfactory/platforms";
 
 const execFileAsync = promisify(execFile);
 
@@ -94,6 +98,9 @@ export async function buildApp(config: AppConfig, supplied?: Partial<AppDependen
   await registerAnalyticsRoutes(server, dependencies.analyticsStore);
   await registerAnalyticsRoutes(server, dependencies.analyticsStore, "/api/v1");
   await registerPipelineRoutes(server, dependencies.database.domain, dependencies.storage, "/api/v1");
+  await registerIntegrationRoutes(server, config, dependencies.database.domain, "/api/v1");
+  await registerRedditRoutes(server, config, dependencies.database.domain, dependencies.queue, "/api/v1");
+  await registerLocalPipelineRoutes(server, dependencies.database.domain, "/api/v1");
 
   server.get("/health", async () => ({
     status: "ok",
@@ -103,6 +110,9 @@ export async function buildApp(config: AppConfig, supplied?: Partial<AppDependen
   }));
 
   server.get<{ Reply: ReadinessResponse }>("/ready", async (_request, reply) => {
+    const storedPlatformCredentials = await readStoredPlatformCredentials(config.PLATFORM_CREDENTIALS_FILE, config.APP_ENCRYPTION_KEY);
+    const youtubeConnected = Boolean(config.YOUTUBE_ACCESS_TOKEN || storedPlatformCredentials.YOUTUBE?.accessToken);
+    const tiktokConnected = Boolean(config.TIKTOK_ACCESS_TOKEN || storedPlatformCredentials.TIKTOK?.accessToken);
     const checks = await Promise.all([
       dependencies.database.ping().then(
         () => ({ name: "postgres", status: dependencies.database.mode === "memory" ? "degraded" : "ok", mode: dependencies.database.mode } as const),
@@ -119,7 +129,7 @@ export async function buildApp(config: AppConfig, supplied?: Partial<AppDependen
       Promise.resolve({ name: "workers", status: "degraded", mode: dependencies.queue.mode, detail: "worker liveness is supervised by queue consumers; inspect worker logs" } as const),
       Promise.resolve({ name: "auth", status: config.AUTH_MODE === "api-key" && config.ADMIN_API_KEY ? "ok" : "degraded", mode: "mock", detail: config.AUTH_MODE === "api-key" && config.ADMIN_API_KEY ? "admin API key configured" : "configure AUTH_MODE=api-key and ADMIN_API_KEY" } as const),
       Promise.resolve({ name: "budget", status: "ok", mode: "mock", detail: `monthly budget €${config.MONTHLY_BUDGET_EUR.toFixed(2)}` } as const),
-      Promise.resolve({ name: "platforms", status: "degraded", mode: "mock", detail: "platform credentials are validated at publish time" } as const)
+      Promise.resolve({ name: "platforms", status: youtubeConnected || tiktokConnected ? "ok" : "degraded", mode: "mock", detail: youtubeConnected && tiktokConnected ? "YouTube and TikTok connected" : youtubeConnected ? "YouTube connected; TikTok not connected" : tiktokConnected ? "TikTok connected; YouTube not connected" : "Connect YouTube or TikTok from the dashboard" } as const)
     ]);
     const status = statusFromChecks(checks);
     const response: ReadinessResponse = {

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsup src/server.ts --format esm --out-dir dist --sourcemap",
-    "dev": "tsx watch src/server.ts",
+    "dev": "node --env-file=../../.env --import tsx/esm --watch src/server.ts",
     "lint": "eslint src --max-warnings 0",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit"
@@ -20,6 +20,7 @@
     "@shortfactory/database": "workspace:*",
     "@shortfactory/discovery": "workspace:*",
     "@shortfactory/logger": "workspace:*",
+    "@shortfactory/platforms": "workspace:*",
     "@shortfactory/queue": "workspace:*",
     "@shortfactory/storage": "workspace:*",
     "@shortfactory/rights": "workspace:*",

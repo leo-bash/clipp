@@ -19,6 +19,7 @@
 | 13 | Daily orchestrator, buffers and idempotent queue scheduling | Completed |
 | 14 | Production hardening: security, backups, monitoring, rate limiting, DLQ and runbook | Completed |
 | 15 | Specification audit closure: remote storage, worker consumers, operational UI, media/TTS completeness and runtime verification | Completed |
+| 16 | Reddit editorial inbox: discover proposals, review sources, select five daily candidates | In progress |
 
 ## Phase 1 exit criteria
 
@@ -81,6 +82,23 @@ The dashboard has an operator review queue backed entirely by API calls. An oper
 ## Next milestone
 
 Phase 13 verification
+
+## Phase 16 — Reddit editorial inbox
+
+- Reddit discovery is exposed through a typed provider and API endpoint.
+- Themes can be selected individually or through a random rotation.
+- Existing Reddit post IDs and channel topics are deduplicated before persistence.
+- The dashboard shows the source excerpt and permalink for manual review.
+- The operator can review exactly ten proposals, select exactly five candidates for the current day and choose a Europe/Rome or US/Eastern publishing window per story.
+- The daily-plan endpoint stores each schedule and enqueues five idempotent `reddit-generation` jobs with the original Reddit link and source text available to the downstream generator.
+- Real Reddit credentials remain a deployment prerequisite because public feeds can return HTTP 403.
+
+## Phase 17 — Reddit daily generation and publication worker
+
+- [ ] Consume `reddit-generation` jobs with the real local/worker story rewrite, voice-over, captions, render, QC and rights checks.
+- [ ] Create publication records only after a video passes QC and is approved by policy.
+- [ ] Hand the stored `scheduledAt` and selected platforms to the publisher worker; retain per-platform success/failure.
+- [ ] Add dashboard progress for queued, rendering, ready-for-review and scheduled states.
 
 `@shortfactory/orchestrator` calculates the active-channel daily target, defaulting to 18 videos for three channels, maintains a 36-video ready buffer, marks a run HIGH priority below 18 ready videos, and switches to REDUCE above 54. It schedules all twelve pipeline queues with deterministic idempotency keys, queue retries and exponential backoff. Tests cover target calculation, all queue stages, retry-safe re-entry and upper-buffer throttling. The orchestrator worker is included in the Compose topology.
 

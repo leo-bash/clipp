@@ -2,12 +2,17 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { InstagramMockPublisher, InstagramPublisher, InMemoryDistributedLock, PublishingScheduler, TikTokMockPublisher, TikTokPublisher, YouTubeMockPublisher, YouTubePublisher } from "./index.js";
+import { getTikTokChunkPlan, InstagramMockPublisher, InstagramPublisher, InMemoryDistributedLock, PublishingScheduler, TikTokMockPublisher, TikTokPublisher, YouTubeMockPublisher, YouTubePublisher } from "./index.js";
 import { InMemoryProviderRateLimiter } from "./rate-limit.js";
 
 afterEach(() => { vi.unstubAllGlobals(); });
 
 describe("mock publishing", () => {
+  it("keeps TikTok chunks within the documented minimum size", () => {
+    expect(getTikTokChunkPlan(84_810_400)).toEqual({ chunkSize: 10_000_000, totalChunkCount: 8 });
+    expect(getTikTokChunkPlan(4_194_304)).toEqual({ chunkSize: 4_194_304, totalChunkCount: 1 });
+  });
+
   it("schedules an approved video to all three independent publishers", async () => {
     const scheduler = new PublishingScheduler([new YouTubeMockPublisher(), new TikTokMockPublisher(), new InstagramMockPublisher()], new InMemoryDistributedLock(), () => new Date("2026-09-02T08:00:00.000Z"));
     const result = await scheduler.publishApprovedVideo({ id: "video-1", status: "APPROVED", rightsStatus: "OWNED" }, { id: "channel-1", timezone: "Europe/Rome", publishingSlots: ["09:00", "12:00", "15:00"] }, { title: "A reviewed short", description: "Description" });
@@ -61,6 +66,7 @@ describe("mock publishing", () => {
     const filePath = path.join(directory, "video.mp4");
     await writeFile(filePath, "fixture");
     const fetchMock = vi.fn(async (input: unknown): Promise<Response> => {
+      if (String(input).includes("/v2/post/publish/creator_info/query/")) return new Response(JSON.stringify({ data: { privacy_level_options: ["PUBLIC_TO_EVERYONE", "SELF_ONLY"] }, error: { code: "ok" } }), { status: 200 });
       if (String(input).includes("/v2/post/publish/video/init/")) return new Response(JSON.stringify({ data: { publish_id: "tiktok-publish-1", upload_url: "https://upload.test/tiktok" }, error: { code: "ok" } }), { status: 200 });
       if (String(input) === "https://upload.test/tiktok") return new Response("", { status: 201 });
       throw new Error(`unexpected fetch ${String(input)}`);
@@ -70,8 +76,16 @@ describe("mock publishing", () => {
     try {
       const result = await new TikTokPublisher({ clientKey: "key", clientSecret: "secret", accessToken: "token", mode: "DIRECT_POST", apiBaseUrl: "https://api.test" }).publish({ videoId: "video-1", title: "Title", description: "Description", filePath, scheduledAt: "2099-01-01T09:00:00Z" });
       expect(result).toMatchObject({ platform: "TIKTOK", status: "SUCCESS", externalPostId: "tiktok-publish-1" });
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
     } finally { await rm(directory, { recursive: true, force: true }); }
+  });
+
+  it("does not require creator_info scope when validating an upload-draft account", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const publisher = new TikTokPublisher({ clientKey: "key", clientSecret: "secret", accessToken: "token", mode: "UPLOAD_DRAFT" });
+    await expect(publisher.validateAccount()).resolves.toMatchObject({ ok: true, detail: "TikTok upload-draft token available" });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("uses the official Instagram Reels container, status and publish flow", async () => {

@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { loadConfig } from "@shortfactory/config";
 import { LocalStorageProvider } from "@shortfactory/storage";
+import { createQueue } from "@shortfactory/queue";
 import { buildApp } from "./app.js";
 
 const apps: Array<Awaited<ReturnType<typeof buildApp>>> = [];
@@ -87,6 +88,21 @@ describe("api foundation", () => {
     expect(JSON.stringify(auth)).not.toContain("admin-key");
   });
 
+  it("keeps platform OAuth unavailable until provider credentials are configured", async () => {
+    const app = await buildApp(loadConfig({}));
+    apps.push(app);
+    const channels = await app.server.inject({ method: "GET", url: "/api/v1/channels?pageSize=1" });
+    const channelId = channels.json<{ items: Array<{ id: string }> }>().items[0]?.id;
+    if (!channelId) throw new Error("seed channel missing");
+    const youtube = await app.server.inject({ method: "GET", url: `/api/v1/integrations/youtube/start?channelId=${channelId}` });
+    const tiktok = await app.server.inject({ method: "GET", url: `/api/v1/integrations/tiktok/start?channelId=${channelId}` });
+
+    expect(youtube.statusCode).toBe(503);
+    expect(youtube.json<{ error: string }>().error).toBe("YOUTUBE_OAUTH_NOT_CONFIGURED");
+    expect(tiktok.statusCode).toBe(503);
+    expect(tiktok.json<{ error: string }>().error).toBe("TIKTOK_OAUTH_NOT_CONFIGURED");
+  });
+
   it("serves seeded channels and validates CRUD input", async () => {
     const app = await buildApp(loadConfig({}));
     apps.push(app);
@@ -97,6 +113,43 @@ describe("api foundation", () => {
     expect(channels.json<{ total: number }>().total).toBe(3);
     expect(invalid.statusCode).toBe(400);
     expect(invalid.json<{ error: string }>().error).toBe("VALIDATION_ERROR");
+  });
+
+  it("supports dated editorial selection for Reddit candidates and validates the proposal boundary", async () => {
+    const app = await buildApp(loadConfig({}));
+    apps.push(app);
+    const candidates = await app.server.inject({ method: "GET", url: "/api/v1/candidates?pageSize=1" });
+    const candidateId = candidates.json<{ items: Array<{ id: string }> }>().items[0]?.id;
+    if (!candidateId) throw new Error("seed candidate missing");
+
+    const selected = await app.server.inject({ method: "POST", url: `/api/v1/candidates/${candidateId}/select`, payload: { selectionDate: "2026-10-20" } });
+    const invalidProposalChannel = await app.server.inject({ method: "POST", url: "/api/v1/reddit/proposals", payload: { channelId: "00000000-0000-0000-0000-000000000000", theme: "rotation", limit: 5 } });
+
+    expect(selected.statusCode).toBe(200);
+    expect(selected.json<{ status: string; analysis: Record<string, string> }>()).toMatchObject({ status: "SELECTED", analysis: { selectedForDate: "2026-10-20" } });
+    expect(invalidProposalChannel.statusCode).toBe(404);
+    expect(invalidProposalChannel.json<{ error: string }>().error).toBe("CHANNEL_NOT_FOUND");
+  });
+
+  it("plans exactly five Reddit stories with regional publishing windows and queue jobs", async () => {
+    const queue = createQueue("mock", "");
+    const app = await buildApp(loadConfig({}), { queue });
+    apps.push(app);
+    const channels = await app.server.inject({ method: "GET", url: "/api/v1/channels?pageSize=1" });
+    const channelId = channels.json<{ items: Array<{ id: string }> }>().items[0]?.id;
+    if (!channelId) throw new Error("seed channel missing");
+    const candidateIds: string[] = [];
+    for (let index = 0; index < 5; index += 1) {
+      const candidate = await app.server.inject({ method: "POST", url: "/api/v1/candidates", payload: { channelId, topic: `Reddit story ${index}`, analysis: { provider: "reddit", permalink: `https://reddit.com/r/test/${index}`, sourceText: "A test story" } } });
+      candidateIds.push(candidate.json<{ id: string }>().id);
+    }
+    const planned = await app.server.inject({ method: "POST", url: "/api/v1/reddit/daily-plan", payload: { channelId, selectionDate: "2026-10-21", items: candidateIds.map((candidateId, index) => ({ candidateId, band: index % 2 === 0 ? "EUROPE_EVENING" : "US_EVENING", platforms: ["YOUTUBE", "TIKTOK"] })) } });
+    const jobs = queue.getJobs?.() ?? [];
+
+    expect(planned.statusCode).toBe(200);
+    expect(planned.json<{ queued: number; planned: Array<{ scheduledAt: string; timezone: string }> }>()).toMatchObject({ queued: 5, planned: expect.arrayContaining([expect.objectContaining({ timezone: "Europe/Rome" }), expect.objectContaining({ timezone: "America/New_York" })]) });
+    expect(jobs).toHaveLength(5);
+    expect(jobs.every((job) => job.name === "reddit-generation:generate-reddit-story-and-schedule-upload")).toBe(true);
   });
 
   it("exposes operational records for accounts, assets, transcripts, plans and job audit", async () => {
@@ -149,9 +202,9 @@ describe("api foundation", () => {
   it("automatically stops paid API reservations when the month-end forecast exceeds the budget", async () => {
     const app = await buildApp(loadConfig({ MONTHLY_BUDGET_EUR: "50" }));
     apps.push(app);
-    const reservation = await app.server.inject({ method: "POST", url: "/api/v1/cost-control/reserve", payload: { scope: "GLOBAL", scopeId: "global", period: "2026-09", idempotencyKey: "forecast-auto-stop", amount: 10, provider: "test", service: "llm", operation: "analysis" } });
+    const reservation = await app.server.inject({ method: "POST", url: "/api/v1/cost-control/reserve", payload: { scope: "GLOBAL", scopeId: "global", period: "2026-09", idempotencyKey: "forecast-auto-stop", amount: 40, provider: "test", service: "llm", operation: "analysis" } });
     const reservationId = reservation.json<{ id: string }>().id;
-    await app.server.inject({ method: "POST", url: `/api/v1/cost-control/${reservationId}/commit`, payload: { actualAmount: 10, provider: "test", service: "llm", operation: "analysis", quantity: 1, unit: "request", estimatedCostEur: 10 } });
+    await app.server.inject({ method: "POST", url: `/api/v1/cost-control/${reservationId}/commit`, payload: { actualAmount: 40, provider: "test", service: "llm", operation: "analysis", quantity: 1, unit: "request", estimatedCostEur: 40 } });
     const forecast = await app.server.inject({ method: "GET", url: "/api/v1/costs/forecast?period=2026-09" });
     const blocked = await app.server.inject({ method: "POST", url: "/api/v1/cost-control/reserve", payload: { scope: "GLOBAL", scopeId: "global", period: "2026-09", idempotencyKey: "forecast-auto-stop-next", amount: 0.01, provider: "test", service: "tts", operation: "generate" } });
 
