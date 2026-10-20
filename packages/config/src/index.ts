@@ -10,7 +10,7 @@ export const configSchema = z.object({
   API_PORT: z.coerce.number().int().min(1).max(65535).default(4000),
   API_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(120),
   API_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
-  CORS_ORIGIN: z.string().default("http://localhost:3000"),
+  CORS_ORIGIN: z.string().default("http://localhost:3000,https://clipp-odrass-projects.vercel.app"),
   DASHBOARD_URL: z.string().url().default("http://localhost:3000"),
   AUTH_MODE: z.enum(["disabled", "api-key", "password"]).default("disabled"),
   AUTH_PASSWORD_HASH: z.string().default(""),

@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { createWriteStream } from "node:fs";
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import os from "node:os";
 import path from "node:path";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
@@ -25,11 +26,42 @@ type LocalItemStatus = "QUEUED" | "GENERATING" | "GENERATED" | "WAITING_UPLOAD" 
 type LocalPlanStatus = "QUEUED" | "GENERATING" | "WAITING_UPLOAD" | "UPLOADING" | "COMPLETED" | "PARTIAL_FAILURE" | "FAILED";
 interface LocalPlanItem { candidateId: string; title: string; sourceUrl: string; band: string; timezone: string; scheduledAt: string; platforms: string[]; runDirectory: string; logPath: string; outputPath?: string; status: LocalItemStatus; error?: string; }
 interface LocalPlan { id: string; channelId: string; selectionDate: string; createdAt: string; updatedAt: string; status: LocalPlanStatus; items: LocalPlanItem[]; }
+type LocalUploadStatus = "RUNNING" | "SUCCEEDED" | "FAILED";
+interface LocalUploadJob { id: string; status: LocalUploadStatus; startedAt: string; finishedAt?: string; logPath: string; output?: string; error?: string; }
 
 const plans = new Map<string, LocalPlan>();
+const uploadJobs = new Map<string, LocalUploadJob>();
+let activeUploadId: string | undefined;
 
 export async function registerLocalPipelineRoutes(server: FastifyInstance, store: DomainStore, prefix = "/api/v1"): Promise<void> {
   server.get(`${prefix}/local-pipeline/plans`, async () => ({ items: await listPlans() }));
+
+  server.get(`${prefix}/local-pipeline/connection`, async (_request, reply) => {
+    try {
+      await access(runnerPath);
+      await access(tsxPath);
+      return { connected: true, hostname: os.hostname(), platform: process.platform, nodeVersion: process.version, command: "npm run upload" };
+    } catch {
+      return reply.code(503).send({ connected: false, message: "Local pipeline runner is not available on this Mac." });
+    }
+  });
+
+  server.post(`${prefix}/local-pipeline/upload`, async (_request, reply) => {
+    const current = activeUploadId ? uploadJobs.get(activeUploadId) : undefined;
+    if (current?.status === "RUNNING") return reply.code(409).send({ error: "UPLOAD_ALREADY_RUNNING", job: current });
+    const id = randomUUID();
+    const job: LocalUploadJob = { id, status: "RUNNING", startedAt: new Date().toISOString(), logPath: path.join(planRoot, `dashboard-upload-${id}.log`) };
+    uploadJobs.set(id, job);
+    activeUploadId = id;
+    void executeLocalUpload(job);
+    return reply.code(202).send(job);
+  });
+
+  server.get<{ Params: { jobId: string } }>(`${prefix}/local-pipeline/upload/:jobId`, async (request, reply) => {
+    const job = uploadJobs.get(request.params.jobId);
+    if (!job) return reply.code(404).send({ error: "UPLOAD_JOB_NOT_FOUND" });
+    return job;
+  });
 
   server.post(`${prefix}/local-pipeline/daily`, async (request, reply) => {
     const input = localPlanSchema.parse(request.body);
@@ -112,15 +144,38 @@ async function executePlan(plan: LocalPlan): Promise<void> {
   await persistPlan(plan);
 }
 
-async function runProcess(args: string[], logPath: string): Promise<{ code: number; error?: string }> {
+async function executeLocalUpload(job: LocalUploadJob): Promise<void> {
+  try {
+    await mkdir(planRoot, { recursive: true });
+    const result = await runProcess(["upload"], job.logPath);
+    job.status = result.code === 0 ? "SUCCEEDED" : "FAILED";
+    job.output = result.output;
+    job.error = result.error ?? (result.code === 0 ? undefined : `upload exited with code ${result.code}`);
+  } catch (error) {
+    job.status = "FAILED";
+    job.error = error instanceof Error ? error.message : "upload failed";
+  } finally {
+    job.finishedAt = new Date().toISOString();
+    if (activeUploadId === job.id) activeUploadId = undefined;
+  }
+}
+
+async function runProcess(args: string[], logPath: string): Promise<{ code: number; error?: string; output?: string }> {
   const log = createWriteStream(logPath, { flags: "a" });
   return await new Promise((resolve) => {
     const child = spawn(tsxPath, [runnerPath, ...args], { cwd: projectRoot, env: process.env, stdio: ["ignore", "pipe", "pipe"] });
     child.stdout.pipe(log);
     child.stderr.pipe(log);
+    let output = "";
+    const capture = (chunk: Buffer | string): void => {
+      output += chunk.toString();
+      if (output.length > 20_000) output = output.slice(-20_000);
+    };
+    child.stdout.on("data", capture);
+    child.stderr.on("data", capture);
     let spawnError = "";
     child.once("error", (error) => { spawnError = error.message; });
-    child.once("close", (code) => { log.end(); resolve({ code: code ?? 1, ...(spawnError ? { error: spawnError } : {}) }); });
+    child.once("close", (code) => { log.end(); resolve({ code: code ?? 1, ...(spawnError ? { error: spawnError } : {}), ...(output ? { output } : {}) }); });
   });
 }
 

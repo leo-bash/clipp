@@ -11,6 +11,8 @@ type AnalyticsOverview = { snapshotCount: number; totals: { views: number; likes
 type SettingsDraft = { videosPerDay: string; minDuration: string; maxDuration: string; minScore: string; monthlyBudget: string; publishingSlots: string; reviewRequired: boolean; cleanupRetentionDays: string; renderQuality: string; concurrency: string; };
 type RedditCandidateAnalysis = { provider?: string; redditPostId?: string; subreddit?: string; permalink?: string; score?: number; theme?: string; sourceText?: string; selectedForDate?: string; };
 type RedditScheduleBand = { id: string; timezone: string; time: string; label: string };
+type LocalConnection = { connected: boolean; hostname?: string; platform?: string; nodeVersion?: string; command?: string; message?: string };
+type LocalUploadJob = { id: string; status: "RUNNING" | "SUCCEEDED" | "FAILED"; startedAt: string; finishedAt?: string; logPath: string; output?: string; error?: string };
 type LocalPlan = { id: string; status: string; selectionDate: string; createdAt: string; items: Array<{ candidateId: string; title: string; band: string; scheduledAt: string; status: string; error?: string }> };
 const redditThemes = ["rotation", "highschool", "romance", "embarrassing", "bullies", "family", "scary", "money", "tinder", "prank", "divorce", "betrayal", "revenge"] as const;
 const redditScheduleBands: RedditScheduleBand[] = [
@@ -45,6 +47,9 @@ export default function OperationsPanel({ channels, health }: OperationsPanelPro
   const [selectedRedditIds, setSelectedRedditIds] = useState<string[]>([]);
   const [redditScheduleById, setRedditScheduleById] = useState<Record<string, string>>({});
   const [localPlans, setLocalPlans] = useState<LocalPlan[]>([]);
+  const [localConnection, setLocalConnection] = useState<LocalConnection | undefined>();
+  const [connectionLoading, setConnectionLoading] = useState(false);
+  const [uploadJob, setUploadJob] = useState<LocalUploadJob | undefined>();
   const [channelId, setChannelId] = useState(channels[0]?.id ?? "");
   const [message, setMessage] = useState("");
   const [candidates, setCandidates] = useState<Candidate[]>([]);
@@ -103,6 +108,21 @@ export default function OperationsPanel({ channels, health }: OperationsPanelPro
     return () => clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    if (!uploadJob || uploadJob.status !== "RUNNING") return;
+    const timer = setInterval(() => {
+      void fetch(`${apiUrl}/api/v1/local-pipeline/upload/${uploadJob.id}`, { credentials: "include" }).then(async (response) => {
+        if (response.ok) setUploadJob(await response.json() as LocalUploadJob);
+      }).catch(() => undefined);
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [apiUrl, uploadJob]);
+
+  useEffect(() => {
+    if (!uploadJob || uploadJob.status === "RUNNING") return;
+    setMessage(uploadJob.status === "SUCCEEDED" ? "Upload completato sul Mac." : `Upload fallito. Log: ${uploadJob.logPath}`);
+  }, [uploadJob]);
+
   async function load<T>(path: string): Promise<{ items: T[] }> {
     const response = await fetch(`${apiUrl}${path}?page=1&pageSize=100`, { credentials: "include" });
     if (!response.ok) throw new Error(`GET ${path} failed`);
@@ -116,6 +136,30 @@ export default function OperationsPanel({ channels, health }: OperationsPanelPro
       const payload = await response.json() as { items?: LocalPlan[] };
       setLocalPlans(payload.items ?? []);
     } catch { /* The dashboard can still be used for manual review if the local runner is unavailable. */ }
+  }
+
+  async function checkLocalConnection(): Promise<void> {
+    setConnectionLoading(true);
+    try {
+      const response = await fetch(`${apiUrl}/api/v1/local-pipeline/connection`, { credentials: "include" });
+      const payload = await response.json() as LocalConnection;
+      setLocalConnection(payload);
+      setMessage(payload.connected ? `Mac collegato: ${payload.hostname ?? "locale"}.` : payload.message ?? "Mac non raggiungibile.");
+    } catch {
+      setLocalConnection({ connected: false, message: "Il server locale del Mac non è raggiungibile. Avvialo e riprova." });
+      setMessage("Il server locale del Mac non è raggiungibile. Avvialo e riprova.");
+    } finally { setConnectionLoading(false); }
+  }
+
+  async function runLocalUpload(): Promise<void> {
+    setMessage("");
+    try {
+      const response = await fetch(`${apiUrl}/api/v1/local-pipeline/upload`, { method: "POST", credentials: "include" });
+      const payload = await response.json() as LocalUploadJob & { error?: string };
+      if (!response.ok) { setMessage(payload.error ?? "Impossibile avviare l'upload sul Mac."); return; }
+      setUploadJob(payload);
+      setMessage("Upload avviato sul Mac. Puoi lasciare aperta questa pagina.");
+    } catch { setMessage("Il server locale del Mac non è raggiungibile. Avvialo e riprova."); }
   }
 
   async function createSource(event: React.FormEvent<HTMLFormElement>): Promise<void> {
@@ -277,7 +321,13 @@ export default function OperationsPanel({ channels, health }: OperationsPanelPro
           </div>
           <div className="local-pipeline-panel">
             <div><strong>Pipeline locale del Mac</strong><small>La pagina controlla lo stato ogni 5 secondi. Il Mac deve rimanere acceso per attendere gli orari programmati.</small></div>
-            <button type="button" onClick={() => void loadLocalPlans()}>Refresh status</button>
+            <div className="review-actions">
+              <button type="button" disabled={connectionLoading} onClick={() => void checkLocalConnection()}>{connectionLoading ? "Verifica in corso…" : "Collega / verifica Mac"}</button>
+              <button type="button" disabled={!localConnection?.connected || uploadJob?.status === "RUNNING"} onClick={() => void runLocalUpload()}>{uploadJob?.status === "RUNNING" ? "Upload in corso…" : "Esegui upload ultimo video"}</button>
+              <button type="button" onClick={() => void loadLocalPlans()}>Aggiorna piani</button>
+            </div>
+            {localConnection ? <small className={localConnection.connected ? "review-message" : "error-text"}>{localConnection.connected ? `Mac collegato · ${localConnection.hostname ?? "locale"} · ${localConnection.nodeVersion ?? "Node"}` : localConnection.message ?? "Mac non raggiungibile"}</small> : <small className="muted">Premi “Collega / verifica Mac” per controllare il server locale.</small>}
+            {uploadJob ? <div className="local-upload-status"><strong>Upload: {uploadJob.status}</strong>{uploadJob.error ? <small className="error-text">{uploadJob.error}</small> : null}{uploadJob.output ? <pre>{uploadJob.output}</pre> : null}</div> : null}
             {localPlans.length === 0 ? <small className="muted">No local plans yet.</small> : localPlans.slice(0, 3).map((plan) => <div className="local-plan" key={plan.id}><strong>{plan.selectionDate} · {plan.status}</strong><small>{plan.items.filter((item) => item.status === "COMPLETED").length}/{plan.items.length} completed</small><div>{plan.items.map((item) => <span className="local-plan-item" key={item.candidateId}>{item.status} · {item.title} · {new Date(item.scheduledAt).toLocaleString()}</span>)}</div></div>)}
           </div>
         </div>

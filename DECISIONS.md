@@ -156,3 +156,10 @@ The Compose stack was verified with Docker running under Colima on macOS ARM aft
 - Reason: Separating discovery from production gives the operator control over story quality, safety, originality and daily volume while preserving traceability to the source.
 - Alternatives considered: Generate directly from the first Reddit result, scrape Reddit through a browser, or let the pipeline publish every discovered post. These were rejected because they reduce editorial control, are fragile or can conflict with provider terms and rights requirements.
 - Consequences: Reddit OAuth credentials are runtime-only; public-feed access is a best-effort fallback and may return HTTP 403. Selection and schedule are stored in candidate metadata with the date; the downstream `reddit-generation` worker remains the explicit integration point for real rendering, approval and publishing.
+
+## 2026-10-20 — Dashboard bridge to the local Mac uploader
+
+- Decision: Add two explicit controls to the dashboard: one checks whether the local Mac API can access the pipeline runner, and one starts the equivalent of `npm run upload` for the latest QC-passed video. The dashboard polls a short-lived in-memory job status and exposes the local log path/output when the command finishes.
+- Reason: The dashboard is hosted online, while the source videos, FFmpeg environment and platform credentials remain on the Mac. A small local bridge keeps those assets local and avoids pretending that Vercel can execute Mac commands.
+- Alternatives considered: upload media to Vercel, expose a shell endpoint, or use browser automation. These were rejected because they increase exposure, move secrets/media unnecessarily or violate the official-platform workflow.
+- Consequences: `npm run dev` must remain running on the Mac, `CORS_ORIGIN` must include the dashboard origin, and the upload button stays disabled until the connection check succeeds. Vercel authentication remains the dashboard access boundary.

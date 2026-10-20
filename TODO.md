@@ -249,4 +249,4 @@ PHASE 15 runtime integration checks are complete locally with Colima/Docker; pro
 - [x] Recuperare candidati Reddit dai temi in rotazione, filtrarli, evitare duplicati e riscriverli con nomi/dettagli reinventati.
 - [x] Salvare permalink e metadati minimi della storia Reddit senza inserire username o testo originale nel video.
 - [x] Inserire la chiave Gemini in `.env` e validare la generazione automatica degli script, inclusa una run lunga oltre 90 secondi.
-- [ ] Collegare il runner alla review dashboard prima di qualsiasi pubblicazione.
+- [x] Collegare il runner locale alla dashboard con verifica Mac e comando di upload dell'ultimo video QC-passed.

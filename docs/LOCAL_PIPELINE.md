@@ -52,6 +52,16 @@ Se vuoi caricare una run specifica:
 npm run upload -- --run-dir "/Users/your-user/Documents/ChatGPT/clipp/.data/local-pipeline/NOME-DELLA-RUN"
 ```
 
+### Dashboard online e Mac locale
+
+Puoi avviare lo stesso upload dalla dashboard online, mantenendo i file e le credenziali sul Mac. Sul Mac avvia il progetto con `npm run dev` e lascia attivo il server API locale. Nella sezione **Candidates**, nel riquadro **Pipeline locale del Mac**:
+
+1. premi **Collega / verifica Mac**;
+2. quando compare il nome del Mac, premi **Esegui upload ultimo video**;
+3. attendi lo stato `SUCCEEDED` o apri il log mostrato in caso di errore.
+
+Il pulsante esegue l’equivalente di `npm run upload` e usa l’ultimo video locale che ha superato il QC. La dashboard online è protetta dall’autenticazione Vercel; il server locale deve rimanere acceso durante l’operazione. Il collegamento accetta solo l’origine della dashboard configurata in `CORS_ORIGIN`.
+
 L'upload cerca solo video con QC superato. TikTok usa la bozza con `TIKTOK_MODE=UPLOAD_DRAFT` per impostazione predefinita. Per la pubblicazione pubblica occorrono `TIKTOK_MODE=DIRECT_POST`, lo scope `video.publish` autorizzato nuovamente dall'account e `TIKTOK_PRIVACY_LEVEL=PUBLIC_TO_EVERYONE`; l'app TikTok deve inoltre essere approvata per il Direct Post. Se YouTube e TikTok rispondono entrambe correttamente, l'intera cartella della run viene spostata nel Cestino secondo `AUTO_DELETE_UPLOADED_VIDEO=true`; se una delle due fallisce, la cartella resta disponibile per il retry. Per mantenere l'upload automatico in un singolo comando usa `npm run generate -- --upload`.
 
 Use an explicit source file:
